@@ -86,11 +86,9 @@ sub build {
         }
     }
 
-##     #TODO: option switch for this
-##     #TODO: goes with CGI::FormBuilder 2.13
-##     foreach (@{ $self->{form_spec}{fields} }) {
-##         $$_{ulist} = 1 if $$_{type} and $$_{type} =~ /checkbox|radio/ and @{ $$_{options} } >= 3;
-##     }
+    foreach (@{ $self->{form_spec}{fields} }) {
+        $$_{ulist} = 1 if defined $$_{options} and @{ $$_{options} } >= 3;
+    }
     
     $self->{form} = CGI::FormBuilder->new(
         method => 'GET',
@@ -106,8 +104,9 @@ sub build {
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
-                headings => $self->{form_spec}{headings},
-                author   => $self->{form_spec}{author},
+                headings    => $self->{form_spec}{headings},
+                author      => $self->{form_spec}{author},
+                description => $self->{form_spec}{description},
             },
         },
         %options,
@@ -137,6 +136,7 @@ sub write_module {
     
     my $title = $self->{form_spec}{title} || '';
     my $author = $self->{form_spec}{author} || '';
+    my $description = $self->{form_spec}{description} || '';
     my $headings = Data::Dumper->Dump([$self->{form_spec}{headings}],['headings']);
     my $fields = Data::Dumper->Dump([ [ map { $$_{name} } @{ $self->{form_spec}{fields} } ] ],['fields']);
     
@@ -175,6 +175,7 @@ sub form {
             data => {
                 headings => $headings,
                 author   => q[$author],
+                description => q[$description],
             },
         },
         $options
@@ -228,12 +229,14 @@ q[<html>
     th { text-align: left; }
     th h2 { padding: .125em .5em; background: #eee; }
     th.label { font-weight: normal; text-align: right; vertical-align: top; }
+    td ul { list-style: none; padding-left: 0; margin-left: 0; }
   </style>
 </head>
 <body>
 
 <h1><% $title %></h1>
 <% $author ? qq[<p id="author">Created by $author</p>] : '' %>
+<% $description ? qq[<p id="description">$description</p>] : '' %>
 ] . $self->_form_template . q[
 <hr />
 <div id="footer">

@@ -1,10 +1,11 @@
-{ my ($title, $author, %lists, %patterns, @fields, @headings, $type, @options, $list_var, $size, $rows, $cols); }
+{ my ($title, $author, $description, %lists, %patterns, @fields, @headings, $type, @options, $list_var, $size, $rows, $cols); }
 
-form_spec: (list_def | line)(s) 
+form_spec: (list_def | description_def | line)(s) 
     {
 	$return = {
 	    title    => $title,
 	    author   => $author,
+	    description => $description,
 	    lists    => \%lists, 
 	    patterns => \%patterns, 
 	    headings => \@headings,
@@ -28,6 +29,13 @@ dynamic_list: '&' <perl_codeblock>
     }
 
 list_name: /[A-Z_]+/
+
+description_def: '!description' <perl_codeblock>
+    { warn "[Text::FormBuilder] Description redefined at input text line $thisline\n" if defined $description;
+    
+    $description = $item[2];
+    $description =~ s/^{\s*|\s*}$//g;
+    }
 
 line: <skip:'[ \t]*'> ( title | author | pattern_def | heading | field | comment | blank ) "\n"
 
