@@ -13,8 +13,8 @@ form_spec: (list_def | description_def | line)(s)
 	}
     }
 
-list_def: '!list' list_name (static_list | dynamic_list)
-    { $lists{$item{list_name}} = [ @options ]; @options = () }
+list_def: '!list' var_name (static_list | dynamic_list)
+    { $lists{$item{var_name}} = [ @options ]; @options = () }
 
 static_list: '{' option(s /,\s*/) /,?/ '}'
 
@@ -28,8 +28,6 @@ dynamic_list: '&' <perl_codeblock>
 	}
     }
 
-list_name: /[A-Z_]+/
-
 description_def: '!description' <perl_codeblock>
     { warn "[Text::FormBuilder] Description redefined at input text line $thisline\n" if defined $description;
     
@@ -37,7 +35,7 @@ description_def: '!description' <perl_codeblock>
     $description =~ s/^{\s*|\s*}$//g;
     }
 
-line: <skip:'[ \t]*'> ( title | author | pattern_def | heading | field | comment | blank ) "\n"
+line: <skip:'[ \t]*'> ( title | author | pattern_def | heading | unknown_directive | field | comment | blank ) "\n"
 
 title: '!title' /.*/
     { warn "[Text::Formbuilder] Title redefined at input text line $thisline\n" if defined $title;
@@ -46,10 +44,9 @@ title: '!title' /.*/
 author: '!author' /.*/
     { $author = $item[2] }
 
-pattern_def: '!pattern' pattern_name pattern
-    { $patterns{$item{pattern_name}} = $item{pattern} }
+pattern_def: '!pattern' var_name pattern
+    { $patterns{$item{var_name}} = $item{pattern} }
 
-pattern_name: /[A-Z_]+/
 pattern: /.*/
 
 heading: '!head' /.*/
@@ -87,6 +84,8 @@ field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) val
     
 name: identifier
 
+var_name: /[A-Z_]+/
+
 field_size: '[' ( row_col | size ) ']'
 
 size: /\d+/
@@ -122,3 +121,7 @@ comment: '#' /.*/
 blank:
 
 identifier: /\w+/
+
+# skip unknown directives with a warning
+unknown_directive: /\!\S*/ /.*/
+    { warn "[Text::Formbuilder] Skipping unknown directive '$item[1]' at input text line $thisline\n"; }
