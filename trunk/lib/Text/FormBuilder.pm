@@ -156,7 +156,7 @@ use warnings;
 
 use CGI::FormBuilder;
 
-sub form {
+sub get_form {
     my \$cgi = shift;
     my \$cgi_form = CGI::FormBuilder->new(
         method => 'GET',
@@ -203,14 +203,19 @@ END
 sub form { shift->{form} }
 
 sub _form_template {
-q[<p id="instructions">(Required fields are marked in <strong>bold</strong>.)</p>
+q[<% $description ? qq[<p id="description">$description</p>] : '' %>
+<% (grep { $_->{required} } @fields) ? qq[<p id="instructions">(Required fields are marked in <strong>bold</strong>.)</p>] : '' %>
 <% $start %>
 <table>
 <% my $i; foreach(@fields) {
     $OUT .= qq[  <tr><th class="sectionhead" colspan="2"><h2>$headings[$i]</h2></th></tr>\n] if $headings[$i];
-    $OUT .= qq[  <tr>];
+    $OUT .= $$_{invalid} ? qq[  <tr class="invalid">] : qq[  <tr>];
     $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
-    $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
+    if ($$_{invalid}) {
+        $OUT .= qq[<td>$$_{field} $$_{comment} Missing or invalid value.</td></tr>\n];
+    } else {
+        $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
+    }
     $i++;
 } %>
   <tr><th></th><td style="padding-top: 1em;"><% $submit %></td></tr>
@@ -236,7 +241,6 @@ q[<html>
 
 <h1><% $title %></h1>
 <% $author ? qq[<p id="author">Created by $author</p>] : '' %>
-<% $description ? qq[<p id="description">$description</p>] : '' %>
 ] . $self->_form_template . q[
 <hr />
 <div id="footer">
