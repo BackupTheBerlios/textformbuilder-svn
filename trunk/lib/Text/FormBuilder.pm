@@ -105,8 +105,23 @@ sub build {
     #   will let you use an external stylesheet
     #   CSS Hint: to get multiple sections to all line up their fields,
     #   set a standard width for th.label
+    # external_css: scalar for a single external stylesheet; array for
+    #   multiple sheets; prepended to the beginning of the CSS as @import
+    #   statetments
     my $css;
     $css = $options{css} || $DEFAULT_CSS;
+    if ($options{external_css}) {
+        my $ref = ref $options{external_css};
+        if ($ref eq 'ARRAY') {
+            # loop over the list of external sheets
+            my $external_sheets = join("\n", map { "\@import url($_);" } @{ $options{external_css} });
+            $css = "$external_sheets\n$css";
+        } elsif ($ref) {
+            croak '[' . (caller(0))[3] . "] Don't know how to handle $ref reference as an argument to external_css";
+        } else {
+            $css = "\@import url($options{external_css});\n$css";
+        }
+    }
     $css .= $options{extra_css} if $options{extra_css};
     
     # messages
@@ -720,6 +735,20 @@ to set the C<css> parameter to import your file:
 
     css => '@import(my_external_stylesheet.css);'
 
+=item C<external_css>
+
+If you want to use multiple external stylesheets, or an external stylesheet
+in conojunction with the default styles, use the C<external_css> option:
+
+    # single external sheet
+    external_css => 'my_styles.css'
+    
+    # mutliple sheets
+    external_css => [
+        'my_style_A.css',
+        'my_style_B.css',
+    ]
+
 =item C<messages>
 
 This works the same way as the C<messages> parameter to 
@@ -791,7 +820,7 @@ First, you parse the formspec and write the module, which you can do as a one-li
 
     $ perl -MText::FormBuilder -e"Text::FormBuilder->parse('formspec.txt')->write_module('My::Form')"
 
-And then, in your CGI script, use the new module:
+B<FIXME> And then, in your CGI script, use the new module:
 
     #!/usr/bin/perl -w
     use strict;
@@ -1168,6 +1197,8 @@ Any line beginning with a C<#> is considered a comment.
 
 Document use of the parser as a standalone module
 
+Make sure that the docs match the generated code.
+
 Better tests!
 
 =head2 Language/Parser
@@ -1183,11 +1214,6 @@ validate. These should cause C<build> to emit a warning before ignoring them.
 C<!include> directive to include external formspec files
 
 =head2 Code generation/Templates
-
-Alternative format using C<< <fieldset> >> tags instead of C<< <h2> >>
-section headers
-
-Make the generated modules into subclasses of CGI::FormBuilder
 
 Revise the generated form constructing code to use the C<fieldopts>
 option to C<< FB->new >>; will require FB 3.02 to run.
