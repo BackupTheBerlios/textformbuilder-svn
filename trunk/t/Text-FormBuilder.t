@@ -15,6 +15,9 @@ BEGIN { use_ok('Text::FormBuilder'); };
 
 my $p = Text::FormBuilder->new;
 isa_ok($p, 'Text::FormBuilder', 'new parser');
+isa_ok($p, 'Class::ParseText::Base', 'subclass of Class::Parsetext::Base');
+can_ok($p, qw(parse_file parse_array parse_text parse)); # inherited parse_* methods
+
 isa_ok($p->parse_text('')->build->form, 'CGI::FormBuilder',  'generated CGI::FormBuilder object (build->form)');
 isa_ok($p->parse_text('')->form,        'CGI::FormBuilder',  'generated CGI::FormBuilder object (form)');
 

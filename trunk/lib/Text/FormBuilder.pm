@@ -3,10 +3,10 @@ package Text::FormBuilder;
 use strict;
 use warnings;
 
-use base qw(Exporter);
+use base qw(Exporter Class::ParseText::Base);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.08_01';
+$VERSION = '0.08';
 @EXPORT = qw(create_form);
 
 use Carp;
@@ -58,8 +58,8 @@ sub create_form {
     $parser->build(%{ $options || {} });
     if ($destination) {
         if (ref $destination) {
-            croak "[Text::FormBuilder::create_form] Don't know what to do with a ref for $destination";
-            #TODO: what do ref dests mean?
+            croak '[' . (caller(0))[3] . "] Don't know what to do with a ref for $destination";
+            #TODO: what DO ref dests mean?
         } else {
             # write webpage, script, or module
             if ($destination =~ $MODULE_EXTS) {
@@ -74,68 +74,13 @@ sub create_form {
         defined wantarray ? return $parser->form : $parser->write;
     }
 }
-    
 
-sub new {
-    my $invocant = shift;
-    my $class = ref $invocant || $invocant;
-    my $self = {
-        parser => Text::FormBuilder::Parser->new,
-    };
-    return bless $self, $class;
-}
-
-sub parse {
-    my ($self, $source) = @_;
-    if (my $type = ref $source) {
-        if ($type eq 'SCALAR') {
-            $self->parse_text($$source);
-        } elsif ($type eq 'ARRAY') {
-            $self->parse_array(@$source);
-        } else {
-            croak "[Text::FormBuilder::parse] Unknown ref type $type passed as source";
-        }
-    } else {
-        $self->parse_file($source);
-    }
-}
-
-sub parse_array {
-    my ($self, @lines) = @_;
-    # so it can be called as a class method
-    $self = $self->new unless ref $self;    
-    $self->parse_text(join("\n", @lines));    
-    return $self;
-}
-
-sub parse_file {
-    my ($self, $filename) = @_;
-    
-    # so it can be called as a class method
-    $self = $self->new unless ref $self;
-    
-    local $/ = undef;
-    open SRC, "< $filename" or croak "[Text::FormBuilder::parse_file] Can't open $filename: $!" and return;
-    my $src = <SRC>;
-    close SRC;
-    
-    return $self->parse_text($src);
-}
-
-sub parse_text {
-    my ($self, $src) = @_;
-    
-    # so it can be called as a class method
-    $self = $self->new unless ref $self;
-    
-    # append a newline so that it can be called on a single field easily
-    $src .= "\n";
-    
-    $self->{form_spec} = $self->{parser}->form_spec($src);
-    
-    # mark structures as not built (newly parsed text)
-    $self->{built} = 0;
-    
+# subclass of Class::ParseText::Base
+sub init {
+    my $self = shift;
+    $self->{parser}         = Text::FormBuilder::Parser->new;
+    $self->{start_rule}     = 'form_spec';
+    $self->{ensure_newline} = 1;
     return $self;
 }
 
@@ -179,13 +124,14 @@ sub build {
                 }
                 close MESSAGES;
             } else {
-                carp "[Text::FormBuilder] Could not read messages file $options{messages}: $!";
+                carp '[' . (caller(0))[3] . "] Could not read messages file $options{messages}: $!";
             }
         }
     } else {
         $options{messages} = { %DEFAULT_MESSAGES };
     }
     
+    # character set
     my $charset = $options{charset};
     
     # save the build options so they can be used from write_module
@@ -239,7 +185,7 @@ sub build {
             # TODO: need the Data::Dumper code to work for this
             # for now, we just warn that it doesn't work
             } elsif (exists $subs{$$_{validate}}) {
-                warn "[Text::FormBuilder] validate coderefs don't work yet";
+                warn '[' . (caller(0))[3] . "] validate coderefs don't work yet";
                 delete $$_{validate};
 ##                 $$_{validate} = $subs{$$_{validate}};
             }
@@ -436,7 +382,7 @@ END
 sub write_module {
     my ($self, $package, $use_tidy) = @_;
 
-    croak '[Text::FormBuilder::write_module] Expecting a package name' unless $package;
+    croak '[' . (caller(0))[3] . '] Expecting a package name' unless $package;
     
     # remove a trailing .pm
     $package =~ s/\.pm$//;
@@ -470,7 +416,7 @@ END
 sub write_script {
     my ($self, $script_name, $use_tidy) = @_;
 
-    croak '[Text::FormBuilder::write_script] Expecting a script name' unless $script_name;
+    croak '[' . (caller(0))[3] . '] Expecting a script name' unless $script_name;
     
     my $form_code = $self->_form_code;
     
@@ -505,7 +451,7 @@ sub _write_output_file {
         unless ($@) {
             Perl::Tidy::perltidy(source => \$source_code, destination => $outfile, argv => $TIDY_OPTIONS);
         } else {
-            carp "Can't tidy the code: $@" if $@;
+            carp '[' . (caller(0))[3] . "] Can't tidy the code: $@" if $@;
             # fallback to just writing it as-is
             open OUT, "> $outfile" or die $!;
             print OUT $source_code;
@@ -649,7 +595,7 @@ sub dump {
     unless ($@) {
         print YAML::Dump(shift->{form_spec});
     } else {
-        warn "Can't dump form spec structure: $@";
+        warn '[' . (caller(0))[3] . "] Can't dump form spec structure using YAML: $@";
     }
 }
 
@@ -1264,7 +1210,7 @@ Peter Eichman C<< <peichman@cpan.org> >>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright E<copy>2004 by Peter Eichman.
+Copyright E<copy>2004-2005 by Peter Eichman.
 
 This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.

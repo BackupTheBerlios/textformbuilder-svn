@@ -7,4 +7,5 @@ lib/Text/FormBuilder.pm
 lib/Text/FormBuilder/Examples.pod
 lib/Text/FormBuilder/Parser.pm
 lib/Text/FormBuilder/grammar
+lib/Class/ParseText/Base.pm
 META.yml                                 Module meta-data (added by MakeMaker)

@@ -54,6 +54,7 @@ L<Text::FormBuilder> for a more detailed explanation.
     
     # write a CGI script
     $ fb myform -o form.cgi
+    $ fb myform -o form.pl
 
 =back
 
