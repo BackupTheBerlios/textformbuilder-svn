@@ -67,7 +67,7 @@ dynamic_list: '&' <perl_codeblock>
 	}
     }
 
-description_def: '!description' <perl_codeblock>
+description_def: '!description' block
     { warn "[Text::FormBuilder] Description redefined at input text line $thisline\n" if defined $description;
     
     $description = $item[2];
@@ -84,11 +84,22 @@ group_def: '!group' { $context = 'group' } var_name '{' field_line(s) '}' { $con
 	@group = ();
     }
 
-note: '!note' <perl_codeblock>
+note: '!note' block
     {   
 	(my $note = $item[2]) =~ s/^{\s*|\s*}$//g;
 	push @lines, [ 'note', $note ];
     }
+
+# curly-brace delimited block, that can contain properly
+# nested curly brackets, along with any other characters
+# return with the '{...}' so that nested blocks get the
+# brackets treated as literals
+block: '{' <skip:''> block_content(s) '}'
+    {
+	'{' . join('', @{ $item[3] }) . '}';
+    }
+
+block_content: /[^\{\}]+?/ | block
 
 
 field_line: <skip:'[ \t]*'> ( field | comment | blank ) "\n"
@@ -96,13 +107,13 @@ line: <skip:'[ \t]*'> ( title | author | pattern_def | section_head | heading | 
 
 title: '!title' /.*/
     {
-	warn "[Text::Formbuilder] Title redefined at input text line $thisline\n" if defined $title;
+	warn "[Text::FormBuilder] Title redefined at input text line $thisline\n" if defined $title;
 	$title = $item[2];
     }
 
 author: '!author' /.*/
     {
-	warn "[Text::Formbuilder] Author redefined at input text line $thisline\n" if defined $author;
+	warn "[Text::FormBuilder] Author redefined at input text line $thisline\n" if defined $author;
 	$author = $item[2];
     }
 
