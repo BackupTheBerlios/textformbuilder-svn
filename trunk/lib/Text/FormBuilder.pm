@@ -623,7 +623,10 @@ Text::FormBuilder - Create CGI::FormBuilder objects from simple text description
 
 =head1 REQUIRES
 
-L<Parse::RecDescent>, L<CGI::FormBuilder>, L<Text::Template>
+L<Parse::RecDescent>,
+L<CGI::FormBuilder>,
+L<Text::Template>,
+L<Class::Base>
 
 =head1 DESCRIPTION
 
@@ -1042,6 +1045,14 @@ field name (but before the descriptive label):
     # for a multiline field, sets rows="4" and cols="30"
     description[4,30]:textarea
 
+To also set the C<maxlength> attribute for text fields, add a C<!> after
+the size:
+
+    # ensure that all titles entered are 40 characters or less
+    title[40!]:text
+
+This currently only works for single line text fields.
+    
 For the input types that can have options (C<select>, C<radio>, and
 C<checkbox>), here's how you do it:
 

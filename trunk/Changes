@@ -1,5 +1,8 @@
 Release history for Text::FormBuilder.
 
+0.09
+    * single-line textfields can be given a maxlength
+    
 0.08 - 10 Jan 2005
     * failure to load Perl::Tidy is no longer fatal
     * create_form tries to emit tidy code

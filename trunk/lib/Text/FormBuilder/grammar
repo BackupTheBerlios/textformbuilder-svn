@@ -18,6 +18,7 @@
 	$required,
 	$list_var,
 	$size,
+	$maxlength,
 	$rows,
 	$cols,
     );
@@ -156,6 +157,7 @@ field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) val
 	$$field{rows} = $rows if defined $rows;
 	$$field{cols} = $cols if defined $cols;
 	$$field{size} = $size if defined $size;
+	$$field{maxlength} = $maxlength if defined $maxlength;
 	
 	#warn "[$thisline] field $item{name}; context $context\n";
 	if ($context eq 'group') {
@@ -170,6 +172,7 @@ field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) val
 	$size = undef;
 	$rows = undef;
 	$cols = undef;
+	$maxlength = undef;
 	@options = ();
         
     }
@@ -180,8 +183,10 @@ var_name: /[A-Z_]+/
 
 field_size: '[' ( row_col | size ) ']'
 
-size: /\d+/
-    { $size = $item[1] }
+size: /\d+/ bang(?)
+    { $maxlength = $item[1] if $item[2][0]; $size = $item[1] }
+
+bang: '!'
 
 row_col: /\d+/ /,\s*/ /\d+/
     { $rows = $item[1]; $cols = $item[3] }
