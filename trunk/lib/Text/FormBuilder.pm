@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.07';
+$VERSION = '0.08_01';
 @EXPORT = qw(create_form);
 
 use Carp;
@@ -63,9 +63,9 @@ sub create_form {
         } else {
             # write webpage, script, or module
             if ($destination =~ $MODULE_EXTS) {
-                $parser->write_module($destination);
+                $parser->write_module($destination, 1);
             } elsif ($destination =~ $SCRIPT_EXTS) {
-                $parser->write_script($destination);
+                $parser->write_script($destination, 1);
             } else {
                 $parser->write($destination);
             }
@@ -438,6 +438,10 @@ sub write_module {
 
     croak '[Text::FormBuilder::write_module] Expecting a package name' unless $package;
     
+    # remove a trailing .pm
+    $package =~ s/\.pm$//;
+##     warn  "[Text::FromBuilder::write_module] Removed extra '.pm' from package name\n" if $package =~ s/\.pm$//;
+    
     my $form_code = $self->_form_code;
     
     my $module = <<END;
@@ -498,8 +502,15 @@ sub _write_output_file {
     if ($use_tidy) {
         # clean up the generated code, if asked
         eval 'use Perl::Tidy';
-        die "Can't tidy the code: $@" if $@;
-        Perl::Tidy::perltidy(source => \$source_code, destination => $outfile, argv => $TIDY_OPTIONS);
+        unless ($@) {
+            Perl::Tidy::perltidy(source => \$source_code, destination => $outfile, argv => $TIDY_OPTIONS);
+        } else {
+            carp "Can't tidy the code: $@" if $@;
+            # fallback to just writing it as-is
+            open OUT, "> $outfile" or die $!;
+            print OUT $source_code;
+            close OUT;
+        }
     } else {
         # otherwise, just print as is
         open OUT, "> $outfile" or die $!;
@@ -1193,8 +1204,25 @@ Any line beginning with a C<#> is considered a comment.
 
 =head1 TODO
 
+Improve the commmand line tools
+
 Allow renaming of the submit button; allow renaming and inclusion of a 
 reset button
+
+Allow groups to be used in normal field lines something like this:
+
+    !group DATE {
+        month
+        day
+        year
+    }
+    
+    dob|Your birthday:DATE
+
+Pieces that wouldn't make sense in a group field: size, row/col, options,
+validate. These should cause C<build> to emit a warning before ignoring them.
+
+Make the generated modules into subclasses of CGI::FormBuilder
 
 Allow for custom wrappers around the C<form_template>
 

@@ -1,5 +1,9 @@
 Release history for Text::FormBuilder.
 
+0.08
+    * failure to load Perl::Tidy is no longer fatal
+    * create_form tries to emit tidy code
+    
 0.07 - 16 Dec 2004
     * added a create_form exported method to "do the right
       thing" in simple cases
