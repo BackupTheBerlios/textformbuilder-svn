@@ -163,8 +163,8 @@ options: '{' option(s /,\s*/) '}'
 
 list_var: /@[A-Z_]+/ { $list_var = $item[1] }
 
-option: value display_text(?)
-    { push @options, { $item{value} => $item{'display_text(?)'}[0] } }
+option: (simple_multiword | quoted_string) display_text(?)
+    { push @options, { $item[1] => $item{'display_text(?)'}[0] } }
 
 value: identifier
 

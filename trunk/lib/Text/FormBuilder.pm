@@ -11,6 +11,13 @@ use Carp;
 use Text::FormBuilder::Parser;
 use CGI::FormBuilder;
 
+# the default options passed to CGI::FormBuilder->new
+my %DEFAULT_OPTIONS = (
+    method => 'GET',
+    javascript => 0,
+    keepextras => 1,
+);
+
 sub new {
     my $invocant = shift;
     my $class = ref $invocant || $invocant;
@@ -132,23 +139,17 @@ sub build {
     }
     
     
-    
-
-    
-    # TODO: use lines instead of fields
-    # TODO: change template to do groups
-    
     # TODO: configurable threshold for this
     foreach (@{ $self->{form_spec}{fields} }) {
         $$_{ulist} = 1 if defined $$_{options} and @{ $$_{options} } >= 3;
     }
     
+
+
+    
     $self->{form} = CGI::FormBuilder->new(
-        method => 'GET',
-        javascript => 0,
-        keepextras => 1,
+        %DEFAULT_OPTIONS,
         title => $self->{form_spec}{title},
-        #fields => [ map { $$_{name} } @{ $self->{form_spec}{fields} } ],
         template => {
             type => 'Text',
             engine => {
@@ -169,10 +170,6 @@ sub build {
     
     # mark structures as built
     $self->{built} = 1;
-    
-    # TEMP: dump @lines structure
-    use YAML;
-    warn YAML::Dump($self->{form_spec}->{lines}), "\n";
     
     return $self;
 }
@@ -214,14 +211,34 @@ sub write_module {
     my $description = $self->{form_spec}{description} || '';
     
     my $headings    = Data::Dumper->Dump([$self->{form_spec}{headings}],['headings']);
+    my $lines       = Data::Dumper->Dump([$self->{form_spec}{lines}],['lines']);
     my $fields      = Data::Dumper->Dump([ [ map { $$_{name} } @{ $self->{form_spec}{fields} } ] ],['fields']);
     
-    my %options = %{ $self->{build_options} };
+    my %options = (
+        %DEFAULT_OPTIONS,
+        title => $self->{form_spec}{title},
+        template => {
+            type => 'Text',
+            engine => {
+                TYPE       => 'STRING',
+                SOURCE     => $self->{build_options}{form_only} ? $self->_form_template : $self->_template,
+                DELIMITERS => [ qw(<% %>) ],
+            },
+            data => {
+                lines       => $self->{form_spec}{lines},
+                headings    => $self->{form_spec}{headings},
+                author      => $self->{form_spec}{author},
+                description => $self->{form_spec}{description},
+            },
+        }, 
+        %{ $self->{build_options} },
+    );
+    
     my $source = $options{form_only} ? $self->_form_template : $self->_template;
     
     delete $options{form_only};
     
-    my $form_options = keys %options > 0 ? Data::Dumper->Dump([$self->{build_options}],['*options']) : '';
+    my $form_options = keys %options > 0 ? Data::Dumper->Dump([\%options],['*options']) : '';
     
     my $field_setup = join(
         "\n", 
@@ -238,25 +255,7 @@ use CGI::FormBuilder;
 sub get_form {
     my \$cgi = shift;
     my \$cgi_form = CGI::FormBuilder->new(
-        method => 'GET',
         params => \$cgi,
-        javascript => 0,
-        keepextras => 1,
-        title => q[$title],
-        fields => $fields,
-        template => {
-            type => 'Text',
-            engine => {
-                TYPE       => 'STRING',
-                SOURCE     => q[$source],
-                DELIMITERS => [ qw(<% %>) ],
-            },
-            data => {
-                headings => $headings,
-                author   => q[$author],
-                description => q[$description],
-            },
-        },
         $form_options
     );
     
@@ -268,7 +267,7 @@ sub get_form {
 # module return
 1;
 END
-    
+
     my $outfile = (split(/::/, $package))[-1] . '.pm';
     
     if ($use_tidy) {
@@ -298,15 +297,23 @@ sub _form_template {
 q[<% $description ? qq[<p id="description">$description</p>] : '' %>
 <% (grep { $_->{required} } @fields) ? qq[<p id="instructions">(Required fields are marked in <strong>bold</strong>.)</p>] : '' %>
 <% $start %>
+<%
+    # drop in the hidden fields here
+    $OUT = join("\n", map { $$_{field} } grep { $$_{type} eq 'hidden' } @fields);
+%>
+
 <table>
 
-<% for my $line (@lines) {
+<% TABLE_LINE: for my $line (@lines) {
 
     if ($$line[0] eq 'head') {
         $OUT .= qq[  <tr><th class="sectionhead" colspan="2"><h2>$$line[1]</h2></th></tr>\n]
     } elsif ($$line[0] eq 'field') {
         #TODO: we only need the field names, not the full field spec in the lines strucutre
         local $_ = $field{$$line[1]{name}};
+        # skip hidden fields in the table
+        next TABLE_LINE if $$_{type} eq 'hidden';
+        
         $OUT .= $$_{invalid} ? qq[  <tr class="invalid">] : qq[  <tr>];
         $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
         if ($$_{invalid}) {
@@ -400,6 +407,10 @@ Text::FormBuilder - Create CGI::FormBuilder objects from simple text description
     
     # write a My::Form module to Form.pm
     $parser->write_module('My::Form');
+
+=head1 REQUIRES
+
+L<Parse::RecDescent>, L<CGI::FormBuilder>, L<Text::Template>
 
 =head1 DESCRIPTION
 
@@ -595,9 +606,12 @@ Recognized input types are the same as those used by CGI::FormBuilder:
 
     text        # the default
     textarea
-    select
-    radio
+    password
+    file
     checkbox
+    radio
+    select
+    hidden
     static
 
 To change the size of the input field, add a bracketed subscript after the
@@ -680,15 +694,32 @@ Any line beginning with a C<#> is considered a comment.
 
 =head1 TODO
 
+DWIM for single valued checkboxes (e.g. C<moreinfo|Send me more info:checkbox>)
+
+Use the custom message file format for messages in the built in template
+
+C<!section> directive to split up the table into multiple tables, each
+with their own id and (optional) heading
+
+Optional validated fields; marked like C<//EMAIL?>
+
+Better examples in the docs (maybe a standalone or two as well)
+
+Document the defaults that are passed to CGI::FormBuilder
+
 C<!include> directive to include external formspec files
 
-Field groups all on one line in the generated form
-
 Better tests!
+
+=head1 BUGS
 
 =head1 SEE ALSO
 
 L<CGI::FormBuilder>
+
+=head1 THANKS
+
+Thanks to eszpee for pointing out some bugs in the default value parsing.
 
 =head1 AUTHOR
 
