@@ -7,9 +7,7 @@ WriteMakefile(
     VERSION_FROM      => 'lib/Text/FormBuilder.pm', # finds $VERSION
     EXE_FILES         => [ 'bin/fb.pl' ],
     PREREQ_PM         => { 
-                            Parse::RecDescent => 1.94,
                             CGI::FormBuilder => 2.12,
-                            YAML => 0.35,
                          }, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/Text/FormBuilder.pm', # retrieve abstract from module

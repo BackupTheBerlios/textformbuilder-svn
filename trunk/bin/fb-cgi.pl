@@ -11,18 +11,22 @@ my $src_file = get_src_file($q->param('form_id'));
 my $parser = Text::FormBuilder->new;
 my $form = $parser->parse($src_file)->build(method => 'POST', params => $q)->form;
 
-if ($form->submitted && $form->validate) {
-    # TODO:
+if (1 or $form->submitted && $form->validate) {
+
     # call storage function
+
     my $plugin = 'DumpParams';
-    eval "use $plugin;";
     
-    if ($plugin->process($q)) {
+    eval "use $plugin;";
+    die "Can't use $plugin; $@" if $@;
+    die "Plugin $plugin doesn't know how to process" unless $plugin->can('process');
+
+    # plugin process method should return a true value
+    if ($plugin->process($q, $form)) {
         # show thank you page
-        #print $q->header('text/plain');
-        #print "Thank you for your input!\n"
     } else {
         # there was an error processing the results
+        die "There was an error processing the submission: " . $plugin->error;
     }
     
 } else {

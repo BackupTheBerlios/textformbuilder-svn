@@ -3,11 +3,10 @@ package Text::FormBuilder;
 use strict;
 use warnings;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Text::FormBuilder::Parser;
 use CGI::FormBuilder;
-use YAML;
 
 sub new {
     my $invocant = shift;
@@ -152,7 +151,14 @@ q[
 ];
 }
 
-sub _dump { print YAML::Dump(shift->{form_spec}); }
+sub dump { 
+    eval "use YAML;";
+    unless ($@) {
+        print YAML::Dump(shift->{form_spec});
+    } else {
+        warn "Can't dump form spec structure: $@";
+    }
+}
 
 
 # module return
@@ -169,7 +175,7 @@ Text::FormBuilder - Parser for a minilanguage describing web forms
     
     # returns a new CGI::FormBuilder object with the fields
     # from the input form spec
-    my $form = $parser->build_form;
+    my $form = $parser->form;
 
 =head1 DESCRIPTION
 
@@ -177,20 +183,49 @@ Text::FormBuilder - Parser for a minilanguage describing web forms
 
 =head2 parse
 
+    $parser->parse($src_file);
+    
+    # or as a class method
+    my $parser = Txt::FormBuilder->parse($src_file);
+
+=head2 parse_text
+
 =head2 build
+
+Options passed to build are passed on verbatim to the L<CGI::FormBuilder>
+constructor. Any options given here override the defaults that this module
+uses.
+
+=head2 form
+
+    my $form = $parser->form;
+
+Returns the L<CGI::FormBuilder> object.
 
 =head2 write
 
+    $parser->write($out_file);
+    # or just print to STDOUT
+    $parser->write;
+
+Calls C<render> on the FormBuilder form, and either writes the resulting HTML
+to a file, or to STDOUT if no filename is given.
+
+=head2 dump
+
+Uses L<YAML> to print out a human-readable representaiton of the parsed
+form spec.
+
 =head1 LANGUAGE
 
-    name[size]|descriptive label[hint]:type=default{option1(display string),option2(display string),...}//validate
+    name[size]|descriptive label[hint]:type=default{option1[display string],option2[display string],...}//validate
     
     !title ...
     
     !pattern name /regular expression/
     !list name {
-        option1(display string),
-        option2(display string),
+        option1[display string],
+        option2[display string],
         ...
     }
 
@@ -203,6 +238,8 @@ Text::FormBuilder - Parser for a minilanguage describing web forms
 =item C<!list>
 
 =item C<!title>
+
+=item C<!author>
 
 =back
 
@@ -218,6 +255,14 @@ consider using the C<!list> directive.
     # comment ...
 
 Any line beginning with a C<#> is considered a comment.
+
+=head1 TODO
+
+=head2 Langauge
+
+Directive for a descriptive or explanatory paragraph about the form
+
+Subsection headers?
 
 =head1 SEE ALSO
 
