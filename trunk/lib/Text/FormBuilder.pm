@@ -529,11 +529,11 @@ q[
                 $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}:</strong>] : "$$line[1]{label}:";
                 $OUT .= qq[</th>\n];
                 
-                $OUT .= qq[    <td>];
+                $OUT .= qq[    <td><span class="fieldgroup">];
                 $OUT .= join(' ', map { qq[<small class="sublabel">$$_{label}</small> $$_{field} $$_{comment}] } @group_fields);
                 $OUT .= " $msg_invalid" if $$_{invalid};
-
-                $OUT .= qq[    </td>\n];
+                
+                $OUT .= qq[    </span></td>\n];
                 $OUT .= qq[  </tr>\n];
             }   
         }

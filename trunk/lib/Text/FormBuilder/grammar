@@ -233,7 +233,19 @@ option: (simple_multiword | value | quoted_string) display_text(?)
 
 value: identifier
 
-display_text: '[' /[^\]]+/i ']'    { $item[2] }
+display_text: brace_block
+    { (my $text = $item[1]) =~ s/^\[\s*|\s*\]$//g; $text }
+
+# square brace delimited block, that can contain properly
+# nested square braces, along with any other characters
+# return with the '[...]' so that nested blocks get the
+# braces treated as literals
+brace_block: '[' <skip:''> brace_block_content(s) ']'
+    {
+	'[' . join('', @{ $item[3] }) . ']';
+    }
+brace_block_content: /[^\[\]]+?/ | brace_block
+
 
 validate: '//' (optional_pattern | required_pattern)    { $item[2] }
 
