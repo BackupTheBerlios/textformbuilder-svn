@@ -27,6 +27,8 @@ table { padding: 1em; }
 td table { padding: 0; } /* exclude the inner checkbox tables */
 #author, #footer { font-style: italic; }
 caption h2 { padding: .125em .5em; background: #ccc; text-align: left; }
+fieldset { margin: 1em 0; }
+legend { font-size: 1.25em; font-weight: bold; background: #ccc; padding: .125em .25em; border: 1px solid #666; }
 th { text-align: left; }
 th h3 { padding: .125em .5em; background: #eee; }
 th.label { font-weight: normal; text-align: right; vertical-align: top; }
@@ -491,8 +493,10 @@ sub _form_template {
 q[
 <%
     SECTION: while (my $section = shift @sections) {
+        $OUT .= qq[<fieldset>\n];
+        $OUT .= qq[  <legend>$$section{head}</legend>] if $$section{head};
         $OUT .= qq[<table id="] . ($$section{id} || '_default') . qq[">\n];
-        $OUT .= qq[  <caption><h2 class="sectionhead">$$section{head}</h2></caption>] if $$section{head};
+        #$OUT .= qq[  <caption><h2 class="sectionhead">$$section{head}</h2></caption>] if $$section{head};
         TABLE_LINE: for my $line (@{ $$section{lines} }) {
             if ($$line[0] eq 'head') {
                 $OUT .= qq[  <tr><th class="subhead" colspan="2"><h3>$$line[1]</h3></th></tr>\n]
@@ -541,11 +545,16 @@ q[
         }
         # close the table if there are sections remaining
         # but leave the last one open for the submit button
-        $OUT .= qq[</table>\n] if @sections;
+        if (@sections) {
+            $OUT .= qq[</table>\n];
+            $OUT .= qq[</fieldset>\n];
+        }
     }
 %>
+  <tr><td colspan="2"><hr /></td></tr>
   <tr><th></th><td style="padding-top: 1em;"><% $submit %></td></tr>
 </table>
+</fieldset>
 <% $end %>
 ];
 }
