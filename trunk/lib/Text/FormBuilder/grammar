@@ -11,8 +11,20 @@ form_spec: (list_def | line)(s)
 	}
     }
 
-list_def: '!list' list_name '{' option(s /,\s*/) /,?/ '}'
+list_def: '!list' list_name (static_list | dynamic_list)
     { $lists{$item{list_name}} = [ @options ]; @options = () }
+
+static_list: '{' option(s /,\s*/) /,?/ '}'
+
+dynamic_list: '&' <perl_codeblock>
+    {
+	my @results = (eval $item[2]);
+	if (ref $results[0] eq 'HASH') {
+	    @options = @results;
+	} else {    
+	    @options = map { { $_ => $_ } } @results;
+	}
+    }
 
 list_name: /[A-Z_]+/
 
