@@ -5,7 +5,7 @@ use warnings;
 
 use vars qw($VERSION);
 
-$VERSION = '0.06';
+$VERSION = '0.07_01';
 
 use Carp;
 use Text::FormBuilder::Parser;
@@ -99,7 +99,7 @@ sub build {
     my $form_only = $options{form_only};
     
     # css, extra_css: allow for custom inline stylesheets
-    #   neat trick: extra_css => '@import(my_external_stylesheet.css);'
+    #   neat trick: css => '@import(my_external_stylesheet.css);'
     #   will let you use an external stylesheet
     #   CSS Hint: to get multiple sections to all line up their fields,
     #   set a standard width for th.label
@@ -108,6 +108,7 @@ sub build {
     $css .= $options{extra_css} if $options{extra_css};
     
     # messages
+    # code pulled (with modifications) from CGI::FormBuilder
     if ($options{messages}) {
         # if its a hashref, we'll just pass it on to CGI::FormBuilder
         
@@ -212,7 +213,6 @@ sub build {
         }
     }
     
-    # TODO: configurable threshold for this
     foreach (@{ $self->{form_spec}{fields} }) {
         $$_{ulist} = 1 if ref $$_{options} and @{ $$_{options} } >= 3;
     }
@@ -526,7 +526,31 @@ L<Parse::RecDescent>, L<CGI::FormBuilder>, L<Text::Template>
 
 =head1 DESCRIPTION
 
+This module is intended to extend the idea of making it easy to create
+web forms by allowing you to describe them with a simple langauge. These
+I<formspecs> are then passed through this module's parser and converted
+into L<CGI::FormBuilder> objects that you can easily use in your CGI
+scripts. In addition, this module can generate code for standalone modules
+which allow you to separate your form design from your script code.
+
+A simple formspec looks like this:
+
+    name//VALUE
+    email//EMAIL
+    langauge:select{English,Spanish,French,German}
+    moreinfo|Send me more information:checkbox
+    interests:checkbox{Perl,karate,bass guitar}
+
+This will produce a required C<name> test field, a required C<email> text
+field that must look like an email address, an optional select dropdown
+field C<langauge> with the choices English, Spanish, French, and German,
+an optional C<moreinfo> checkbox labeled ``Send me more information'', and
+finally a set of checkboxes named C<interests> with the choices Perl,
+karate, and bass guitar.
+
 =head2 new
+
+    my $parser = Text::FormBuilder->new;
 
 =head2 parse
 
@@ -572,6 +596,11 @@ CSS styles for the built in template. A value given a C<css> will
 replace the existing CSS, and a value given as C<extra_css> will be
 appended to the CSS. If both options are given, then the CSS that is
 used will be C<css> concatenated with C<extra_css>.
+
+If you want to use an external stylesheet, a quick way to get this is
+to set the C<css> parameter to import your file:
+
+    css => '@import(my_external_stylesheet.css);'
 
 =item C<messages>
 
