@@ -9,6 +9,8 @@ Release history for Text::FormBuilder.
     * allow option lists to have simple multiword and quoted
       string values
     * allow for validated but not required fields
+    * added a !section directive that splits up a form into
+      sub-tables with their own ids and captions
     
 0.05 -  9 Nov 2004
     * First CPAN release

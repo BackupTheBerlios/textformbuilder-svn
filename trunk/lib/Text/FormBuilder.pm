@@ -18,6 +18,19 @@ my %DEFAULT_OPTIONS = (
     keepextras => 1,
 );
 
+# the built in CSS for the template
+my $DEFAULT_CSS = <<END;
+table { padding: 1em; }
+#author, #footer { font-style: italic; }
+caption h2 { padding: .125em .5em; background: #ccc; text-align: left; }
+th { text-align: left; }
+th h3 { padding: .125em .5em; background: #eee; }
+th.label { font-weight: normal; text-align: right; vertical-align: top; }
+td ul { list-style: none; padding-left: 0; margin-left: 0; }
+.sublabel { color: #999; }
+.invalid { background: red; }
+END
+
 sub new {
     my $invocant = shift;
     my $class = ref $invocant || $invocant;
@@ -73,7 +86,12 @@ sub build {
     # our custom %options:
     # form_only: use only the form part of the template
     my $form_only = $options{form_only};
-    delete $options{form_only};
+    my $css;
+    $css = $options{css} || $DEFAULT_CSS;
+    $css .= $options{extra_css} if $options{extra_css};
+    
+    # remove our custom options
+    delete $options{$_} foreach qw(form_only css extra_css);
     
     # substitute in custom pattern definitions for field validation
     if (my %patterns = %{ $self->{form_spec}{patterns} || {} }) {
@@ -138,7 +156,14 @@ sub build {
         }
     } continue {
         delete $$_{list};
-    }    
+    }
+    
+    # special case single-value checkboxes
+    foreach (grep { $$_{type} && $$_{type} eq 'checkbox' } @{ $self->{form_spec}{fields} }) {
+        unless ($$_{options}) {
+            $$_{options} = [ { $$_{name} => $$_{label} || ucfirst join(' ',split(/_/,$$_{name})) } ];
+        }
+    }
     
     # TODO: configurable threshold for this
     foreach (@{ $self->{form_spec}{fields} }) {
@@ -166,7 +191,7 @@ sub build {
             type => 'Text',
             engine => {
                 TYPE       => 'STRING',
-                SOURCE     => $form_only ? $self->_form_template : $self->_template,
+                SOURCE     => $form_only ? $self->_form_template : $self->_template($css),
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
@@ -217,6 +242,10 @@ sub write_module {
     # don't dump $VARn names
     $Data::Dumper::Terse = 1;
     
+    my $css;
+    $css = $self->{build_options}{css} || $DEFAULT_CSS;
+    $css .= $self->{build_options}{extra_css} if $self->{build_options}{extra_css};
+    
     my %options = (
         %DEFAULT_OPTIONS,
         title => $self->{form_spec}{title},
@@ -227,7 +256,7 @@ sub write_module {
             type => 'Text',
             engine => {
                 TYPE       => 'STRING',
-                SOURCE     => $self->{build_options}{form_only} ? $self->_form_template : $self->_template,
+                SOURCE     => $self->{build_options}{form_only} ? $self->_form_template : $self->_template($css),
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
@@ -241,7 +270,8 @@ sub write_module {
     
     my $source = $options{form_only} ? $self->_form_template : $self->_template;
     
-    delete $options{form_only};
+    # remove our custom options
+    delete $options{$_} foreach qw(form_only css extra_css);
     
     my $form_options = keys %options > 0 ? Data::Dumper->Dump([\%options],['*options']) : '';
     
@@ -309,11 +339,11 @@ q[<% $description ? qq[<p id="description">$description</p>] : '' %>
 
 <%
     SECTION: while (my $section = shift @sections) {
-        $OUT .= qq[<table id="$$section{id}">\n];
-        $OUT .= qq[  <caption><h2>$$section{head}</h2></caption>] if $$section{head};
+        $OUT .= qq[<table id="] . ($$section{id} || '_default') . qq[">\n];
+        $OUT .= qq[  <caption><h2 class="sectionhead">$$section{head}</h2></caption>] if $$section{head};
         TABLE_LINE: for my $line (@{ $$section{lines} }) {
             if ($$line[0] eq 'head') {
-                $OUT .= qq[  <tr><th class="sectionhead" colspan="2"><h3>$$line[1]</h3></th></tr>\n]
+                $OUT .= qq[  <tr><th class="subhead" colspan="2"><h3>$$line[1]</h3></th></tr>\n]
             } elsif ($$line[0] eq 'field') {
                 #TODO: we only need the field names, not the full field spec in the lines strucutre
                 local $_ = $field{$$line[1]{name}};
@@ -321,12 +351,20 @@ q[<% $description ? qq[<p id="description">$description</p>] : '' %>
                 next TABLE_LINE if $$_{type} eq 'hidden';
                 
                 $OUT .= $$_{invalid} ? qq[  <tr class="invalid">] : qq[  <tr>];
-                $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
-                if ($$_{invalid}) {
-                    $OUT .= qq[<td>$$_{field} $$_{comment} Missing or invalid value.</td></tr>\n];
+                
+                # special case single value checkboxes
+                if ($$_{type} eq 'checkbox' && @{ $$_{options} } == 1) {
+                    $OUT .= qq[<th></th>];
                 } else {
-                    $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
+                    $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
                 }
+                if ($$_{invalid}) {
+                    $OUT .= qq[<td>$$_{field} $$_{comment} Missing or invalid value.</td>];
+                } else {
+                    $OUT .= qq[<td>$$_{field} $$_{comment}</td>];
+                }
+                $OUT .= qq[</tr>\n];
+                
             } elsif ($$line[0] eq 'group') {
                 my @field_names = map { $$_{name} } @{ $$line[1]{group} };
                 my @group_fields = map { $field{$_} } @field_names;
@@ -355,19 +393,12 @@ q[<% $description ? qq[<p id="description">$description</p>] : '' %>
 
 sub _template {
     my $self = shift;
+    my $css = shift || $DEFAULT_CSS;
 q[<html>
 <head>
   <title><% $title %><% $author ? ' - ' . ucfirst $author : '' %></title>
-  <style type="text/css">
-    table { margin: .5em 1em; }
-    #author, #footer { font-style: italic; }
-    caption h2 { padding: .125em .5em; background: #ddd; text-align: left; }
-    th { text-align: left; }
-    th h3 { padding: .125em .5em; background: #eee; }
-    th.label { font-weight: normal; text-align: right; vertical-align: top; }
-    td ul { list-style: none; padding-left: 0; margin-left: 0; }
-    .sublabel { color: #999; }
-    .invalid { background: red; }
+  <style type="text/css">] .
+$css . q[
   </style>
 </head>
 <body>
@@ -459,6 +490,14 @@ Builds the CGI::FormBuilder object. Options directly used by C<build> are:
 Only uses the form portion of the template, and omits the surrounding html,
 title, author, and the standard footer. This does, however, include the
 description as specified with the C<!description> directive.
+
+=item C<css>, C<extra_css>
+
+These options allow you to tell Text::FormBuilder to use different
+CSS styles for the built in template. A value given a C<css> will
+replace the existing CSS, and a value given as C<extra_css> will be
+appended to the CSS. If both options are given, then the CSS that is
+used will be C<css> concatenated with C<extra_css>.
 
 =back
 
@@ -702,10 +741,8 @@ supplying any options:
 
     moreinfo|I want to recieve more information:checkbox
 
-The one drawback to this is that the label to the checkbox will still appear
-to the left of the field. I am leaving it this way for now, but if enough
-people would like this to change, I may make single-option checkboxes a special
-case and put the label on the right.
+In this case, the label ``I want to recieve more information'' will be
+printed to the right of the checkbox.
 
 You can also supply a default value to the field. To get a default value of
 C<green> for the color field:
@@ -748,9 +785,7 @@ Any line beginning with a C<#> is considered a comment.
 
 Use the custom message file format for messages in the built in template
 
-Custom CSS, both in addition to, and replacing the built in.
-
-Use HTML::Template instead of Text::Template for the built in template
+Maybe use HTML::Template instead of Text::Template for the built in template
 (since CGI::FormBuilder users may be more likely to already have HTML::Template)
 
 Better examples in the docs (maybe a standalone or two as well)
@@ -763,8 +798,7 @@ Better tests!
 
 =head1 BUGS
 
-For now, checkboxes with a single value still display their labels on
-the left.
+I'm sure they're in there, I just haven't tripped over any new ones lately. :-)
 
 =head1 SEE ALSO
 
