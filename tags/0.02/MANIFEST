@@ -1,0 +1,9 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/Text-FormBuilder.t
+lib/Text/FormBuilder.pm
+lib/Text/FormBuilder/Parser.pm
+bin/fb.pl
+META.yml                                 Module meta-data (added by MakeMaker)
