@@ -3,9 +3,11 @@ package Text::FormBuilder;
 use strict;
 use warnings;
 
-use vars qw($VERSION);
+use base qw(Exporter);
+use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.07_01';
+$VERSION = '0.07_02';
+@EXPORT = qw(create_form);
 
 use Carp;
 use Text::FormBuilder::Parser;
@@ -44,6 +46,34 @@ my $DEFAULT_CHARSET = 'iso-8859-1';
 # options to clean up the code with Perl::Tidy
 my $TIDY_OPTIONS = '-nolq -ci=4 -ce';
 
+my $HTML_EXTS   = qr/\.html?$/;
+my $SCRIPT_EXTS = qr/\.(pl|cgi)$/;
+
+# superautomagical exported function
+sub create_form {
+    my ($source, $options, $destination) = @_;
+    my $parser = __PACKAGE__->parse($source);
+    $parser->build(%{ $options || {} });
+    if ($destination) {
+        if (ref $destination) {
+            croak "[Text::FormBuilder::create_form] Don't know what to do with a ref for $destination";
+            #TODO: what do ref dests mean?
+        } else {
+            # write webpage, script, or module
+            if ($destination =~ $HTML_EXTS) {
+                $parser->write($destination);
+            } elsif ($destination =~ $SCRIPT_EXTS) {
+                $parser->write_script($destination);
+            } else {
+                $parser->write_module($destination);
+            }
+        }
+    } else {
+        defined wantarray ? return $parser->form : $parser->write;
+    }
+}
+    
+
 sub new {
     my $invocant = shift;
     my $class = ref $invocant || $invocant;
@@ -55,11 +85,25 @@ sub new {
 
 sub parse {
     my ($self, $source) = @_;
-    if (ref $source && ref $source eq 'SCALAR') {
-        $self->parse_text($$source);
+    if (my $type = ref $source) {
+        if ($type eq 'SCALAR') {
+            $self->parse_text($$source);
+        } elsif ($type eq 'ARRAY') {
+            $self->parse_array(@$source);
+        } else {
+            croak "[Text::FormBuilder::parse] Unknown ref type $type passed as source";
+        }
     } else {
         $self->parse_file($source);
     }
+}
+
+sub parse_array {
+    my ($self, @lines) = @_;
+    # so it can be called as a class method
+    $self = $self->new unless ref $self;    
+    $self->parse_text(join("\n", @lines));    
+    return $self;
 }
 
 sub parse_file {
@@ -149,32 +193,35 @@ sub build {
     delete $options{$_} foreach qw(form_only css extra_css charset);
     
     # expand groups
-    my %groups = %{ $self->{form_spec}{groups} || {} };
-    for my $section (@{ $self->{form_spec}{sections} || [] }) {
-        foreach (grep { $$_[0] eq 'group' } @{ $$section{lines} }) {
-            $$_[1]{group} =~ s/^\%//;       # strip leading % from group var name
-            
-            if (exists $groups{$$_[1]{group}}) {
-                my @fields; # fields in the group
-                push @fields, { %$_ } foreach @{ $groups{$$_[1]{group}} };
-                for my $field (@fields) {
-                    $$field{label} ||= ucfirst $$field{name};
-                    $$field{name} = "$$_[1]{name}_$$field{name}";                
+    if (my %groups = %{ $self->{form_spec}{groups} || {} }) {
+        for my $section (@{ $self->{form_spec}{sections} || [] }) {
+            foreach (grep { $$_[0] eq 'group' } @{ $$section{lines} }) {
+                $$_[1]{group} =~ s/^\%//;       # strip leading % from group var name
+                
+                if (exists $groups{$$_[1]{group}}) {
+                    my @fields; # fields in the group
+                    push @fields, { %$_ } foreach @{ $groups{$$_[1]{group}} };
+                    for my $field (@fields) {
+                        $$field{label} ||= ucfirst $$field{name};
+                        $$field{name} = "$$_[1]{name}_$$field{name}";                
+                    }
+                    $_ = [ 'group', { label => $$_[1]{label} || ucfirst(join(' ',split('_',$$_[1]{name}))), group => \@fields } ];
                 }
-                $_ = [ 'group', { label => $$_[1]{label} || ucfirst(join(' ',split('_',$$_[1]{name}))), group => \@fields } ];
             }
         }
     }
     
     # the actual fields that are given to CGI::FormBuilder
+    # make copies so that when we trim down the sections
+    # we don't lose the form field information
     $self->{form_spec}{fields} = [];
     
     for my $section (@{ $self->{form_spec}{sections} || [] }) {
         for my $line (@{ $$section{lines} }) {
             if ($$line[0] eq 'group') {
-                push @{ $self->{form_spec}{fields} }, $_ foreach @{ $$line[1]{group} };
+                push @{ $self->{form_spec}{fields} }, { %{$_} } foreach @{ $$line[1]{group} };
             } elsif ($$line[0] eq 'field') {
-                push @{ $self->{form_spec}{fields} }, $$line[1];
+                push @{ $self->{form_spec}{fields} }, { %{$$line[1]} };
             }
         }
     }
@@ -192,30 +239,31 @@ sub build {
             } elsif (exists $subs{$$_{validate}}) {
                 warn "[Text::FormBuilder] validate coderefs don't work yet";
                 delete $$_{validate};
-##                 $$_{validate} = eval "sub $subs{$$_{validate}}";
+##                 $$_{validate} = $subs{$$_{validate}};
             }
         }
     }
     
     # substitute in list names
-    my %lists = %{ $self->{form_spec}{lists} || {} };
-    foreach (@{ $self->{form_spec}{fields} }) {
-        next unless $$_{list};
-        
-        $$_{list} =~ s/^\@//;   # strip leading @ from list var name
-        
-        # a hack so we don't get screwy reference errors
-        if (exists $lists{$$_{list}}) {
-            my @list;
-            push @list, { %$_ } foreach @{ $lists{$$_{list}} };
-            $$_{options} = \@list;
-        } else {
-            # assume that the list name is a builtin 
-            # and let it fall through to CGI::FormBuilder
-            $$_{options} = $$_{list};
+    if (my %lists = %{ $self->{form_spec}{lists} || {} }) {
+        foreach (@{ $self->{form_spec}{fields} }) {
+            next unless $$_{list};
+            
+            $$_{list} =~ s/^\@//;   # strip leading @ from list var name
+            
+            # a hack so we don't get screwy reference errors
+            if (exists $lists{$$_{list}}) {
+                my @list;
+                push @list, { %$_ } foreach @{ $lists{$$_{list}} };
+                $$_{options} = \@list;
+            } else {
+                # assume that the list name is a builtin 
+                # and let it fall through to CGI::FormBuilder
+                $$_{options} = $$_{list};
+            }
+        } continue {
+            delete $$_{list};
         }
-    } continue {
-        delete $$_{list};
     }
     
     # special case single-value checkboxes
@@ -225,6 +273,7 @@ sub build {
         }
     }
     
+    # use the list for displaying checkbox groups
     foreach (@{ $self->{form_spec}{fields} }) {
         $$_{ulist} = 1 if ref $$_{options} and @{ $$_{options} } >= 3;
     }
@@ -241,8 +290,14 @@ sub build {
     $$_{required} or delete $$_{required} foreach @{ $self->{form_spec}{fields} };
 
     foreach (@{ $self->{form_spec}{sections} }) {
-        for my $line (grep { $$_[0] eq 'field' } @{ $$_{lines} }) {
-            $_ eq 'name' or delete $$line[1]{$_} foreach keys %{ $$line[1] };
+        #for my $line (grep { $$_[0] eq 'field' } @{ $$_{lines} }) {
+        for my $line (@{ $$_{lines} }) {
+            if ($$line[0] eq 'field') {
+                $$line[1] = $$line[1]{name};
+##                 $_ eq 'name' or delete $$line[1]{$_} foreach keys %{ $$line[1] };
+##             } elsif ($$line[0] eq 'group') {
+##                 $$line[1] = [ map { $$_{name} } @{ $$line[1]{group} } ];
+            }
         }
     }
     
@@ -292,8 +347,12 @@ sub write {
     }
 }
 
+# generates the core code to create the $form object
+# the generated code assumes that you have a CGI.pm
+# object named $q
 sub _form_code {
     my $self = shift;
+    
     # automatically call build if needed to
     # allow the new->parse->write shortcut
     $self->build unless $self->{built};
@@ -339,15 +398,19 @@ sub _form_code {
     my %module_subs;
     my $d = Data::Dumper->new([ \%options ], [ '*options' ]);
     
-    #TODO: need a workaround/better solution since Data::Dumper doesn't like dumping coderefs
+    use B::Deparse;
+    my $deparse = B::Deparse->new;
+##     
+##     #TODO: need a workaround/better solution since Data::Dumper doesn't like dumping coderefs
 ##     foreach (@{ $self->{form_spec}{fields} }) {
 ##         if (ref $$_{validate} eq 'CODE') {
-##             $d->Seen({ "*_validate_$$_{name}" => $$_{validate} });
-##             $module_subs{$$_{name}} = "sub _validate_$$_{name} $$_{validate}";
+##             my $body = $deparse->coderef2text($$_{validate});
+##             #$d->Seen({ "*_validate_$$_{name}" => $$_{validate} });
+##             #$module_subs{$$_{name}} = "sub _validate_$$_{name} $$_{validate}";
 ##         }
-##     }
-##     
+##     }    
 ##     my $sub_code = join("\n", each %module_subs);
+    
     my $form_options = keys %options > 0 ? $d->Dump : '';
     
     my $field_setup = join(
@@ -391,9 +454,7 @@ sub get_form {
 1;
 END
 
-    my $outfile = (split(/::/, $package))[-1] . '.pm';
-    
-    _write_output_file($module, $outfile, $use_tidy);
+    _write_output_file($module, (split(/::/, $package))[-1] . '.pm', $use_tidy);
     return $self;
 }
 
@@ -473,8 +534,7 @@ q[
             if ($$line[0] eq 'head') {
                 $OUT .= qq[  <tr><th class="subhead" colspan="2"><h3>$$line[1]</h3></th></tr>\n]
             } elsif ($$line[0] eq 'field') {
-                #TODO: we only need the field names, not the full field spec in the lines strucutre
-                local $_ = $field{$$line[1]{name}};
+                local $_ = $field{$$line[1]};
                 
                 # skip hidden fields in the table
                 next TABLE_LINE if $$_{type} eq 'hidden';
@@ -498,8 +558,7 @@ q[
                 $OUT .= qq[</tr>\n];
                 
             } elsif ($$line[0] eq 'group') {
-                my @field_names = map { $$_{name} } @{ $$line[1]{group} };
-                my @group_fields = map { $field{$_} } @field_names;
+                my @group_fields = map { $field{$_} } map { $$_{name} } @{ $$line[1]{group} };
                 $OUT .= (grep { $$_{invalid} } @group_fields) ? qq[  <tr class="invalid">\n] : qq[  <tr>\n];
                 
                 $OUT .= '    <th class="label">';
@@ -508,6 +567,8 @@ q[
                 
                 $OUT .= qq[    <td>];
                 $OUT .= join(' ', map { qq[<small class="sublabel">$$_{label}</small> $$_{field} $$_{comment}] } @group_fields);
+                $OUT .= " $msg_invalid" if $$_{invalid};
+
                 $OUT .= qq[    </td>\n];
                 $OUT .= qq[  </tr>\n];
             }   
@@ -535,9 +596,7 @@ q[<html>
   <meta http-equiv="Content-Type" content="text/html; charset=] . $charset . q[" />
   <title><% $title %><% $author ? ' - ' . ucfirst $author : '' %></title>
   <style type="text/css">
-] .
-$css .
-q[  </style>
+] . $css . q[  </style>
   <% $jshead %>
 </head>
 <body>
@@ -561,6 +620,7 @@ sub _post_template {
 ];
 }
 
+# usage: $self->_template($css, $charset)
 sub _template {
     my $self = shift;
     return $self->_pre_template(@_) . $self->_form_template . $self->_post_template;
@@ -631,13 +691,18 @@ karate, and bass guitar.
 
 =head2 parse
 
-    # parse a file
+    # parse a file (regular scalar)
     $parser->parse($filename);
     
     # or pass a scalar ref for parse a literal string
     $parser->parse(\$string);
+    
+    # or an array ref to parse lines
+    $parser->parse(\@lines);
 
-Parse the file or string. Returns the parser object.
+Parse the file or string. Returns the parser object. This method,
+along with all of its C<parse_*> siblings, may be called as a class
+method to construct a new object.
 
 =head2 parse_file
 
@@ -651,6 +716,12 @@ Parse the file or string. Returns the parser object.
     $parser->parse_text($src);
 
 Parse the given C<$src> text. Returns the parser object.
+
+=head2 parse_array
+
+    $parser->parse_array(@lines);
+
+Concatenates and parses C<@lines>. Returns the parser object.
 
 =head2 build
 
@@ -840,15 +911,21 @@ Any of these can be overriden by the C<build> method:
         ...
     }
     
-    !pattern name /regular expression/
+    !pattern NAME /regular expression/
     
-    !list name {
+    !list NAME {
         option1[display string],
         option2[display string],
         ...
     }
     
-    !list name &{ CODE }
+    !list NAME &{ CODE }
+    
+    !group NAME {
+        field1
+        field2
+        ...
+    }
     
     !section id heading
     
@@ -865,6 +942,15 @@ Defines a validation pattern.
 =item C<!list>
 
 Defines a list for use in a C<radio>, C<checkbox>, or C<select> field.
+
+=item C<!group>
+
+Define a named group of fields that are displayed all on one line. Use with
+the C<!field> directive.
+
+=item C<!field>
+
+Include a named instance of a group defined with C<!group>.
 
 =item C<!title>
 
@@ -1027,6 +1113,27 @@ change this, add a C<?> to the end of the validation type:
 In this case, you would get a C<contact> field that was optional, but if it
 were filled in, would have to validate as an C<EMAIL>.
 
+=head2 Field Groups
+
+You can define groups of fields using the C<!group> directive:
+
+    !group DATE {
+        month:select@MONTHS//INT
+        day[2]//INT
+        year[4]//INT
+    }
+
+You can then include instances of this group using the C<!field> directive:
+
+    !field %DATE birthday
+
+This will create a line in the form labeled ``Birthday'' which contains
+a month dropdown, and day and year text entry fields. The actual input field
+names are formed by concatenating the C<!field> name (e.g. C<birthday>) with
+the name of the subfield defined in the group (e.g. C<month>, C<day>, C<year>).
+Thus in this example, you would end up with the form fields C<birthday_month>,
+C<birthday_day>, and C<birthday_year>.
+
 =head2 Comments
 
     # comment ...
@@ -1034,6 +1141,9 @@ were filled in, would have to validate as an C<EMAIL>.
 Any line beginning with a C<#> is considered a comment.
 
 =head1 TODO
+
+Allow renaming of the submit button; allow renaming and inclusion of a 
+reset button
 
 Allow for custom wrappers around the C<form_template>
 
@@ -1048,7 +1158,14 @@ Better tests!
 
 =head1 BUGS
 
-I'm sure they're in there, I just haven't tripped over any new ones lately. :-)
+Creating two $parsers in the same script causes the second one to get the data
+from the first one.
+
+Get the fallback to CGI::FormBuilder builtin lists to work.
+
+I'm sure there are more in there, I just haven't tripped over any new ones lately. :-)
+
+Suggestions on how to improve the (currently tiny) test suite would be appreciated.
 
 =head1 SEE ALSO
 

@@ -5,7 +5,7 @@
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use Test::More tests => 6;
+use Test::More qw(no_plan); #tests => 6;
 BEGIN { use_ok('Text::FormBuilder'); };
 
 #########################
@@ -24,3 +24,17 @@ isa_ok($p, 'Text::FormBuilder', 'new parser (from parse_text as class method)');
 $p = Text::FormBuilder->parse(\'');
 isa_ok($p, 'Text::FormBuilder', 'new parser (from parse as class method)');
 
+
+my $simple = <<END;
+name
+email
+phone
+END
+
+my $form = $p->parse(\$simple)->form;
+# we should have three fields
+is(keys %{ $form->fields }, 3, 'correct number of fields');
+
+my $p2 = Text::FormBuilder->parse_array([qw(code title semester instructor)]);
+is(keys %{ $p2->form->fields }, 4, 'correct number of fields from parse_array');
+$p2->write;

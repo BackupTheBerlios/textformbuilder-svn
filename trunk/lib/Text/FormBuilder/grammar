@@ -74,7 +74,7 @@ description_def: '!description' <perl_codeblock>
     }
 
 validate_def: '!validate' var_name <perl_codeblock>
-    { $subs{$item{var_name}} = $item[3] }
+    { $subs{$item{var_name}} = eval "sub $item[3]" }
 
 group_def: '!group' { $context = 'group' } var_name '{' field_line(s) '}' { $context = 'line' }
     { 
