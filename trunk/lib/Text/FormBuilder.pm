@@ -31,13 +31,13 @@ table { padding: 1em; }
 td table { padding: 0; } /* exclude the inner checkbox tables */
 #author, #footer { font-style: italic; }
 caption h2 { padding: .125em .5em; background: #ccc; text-align: left; }
-fieldset { margin: 1em 0; }
+fieldset { margin: 1em 0; border: none; border-top: 2px solid #999; }
 legend { font-size: 1.25em; font-weight: bold; background: #ccc; padding: .125em .25em; border: 1px solid #666; }
 th { text-align: left; }
-th h3 { padding: .125em .5em; background: #eee; }
+th h2 { padding: .125em .5em; background: #eee; font-size: 1.25em; }
 th.label { font-weight: normal; text-align: right; vertical-align: top; }
 td ul { list-style: none; padding-left: 0; margin-left: 0; }
-.note { background: #eee; }
+.note { background: #eee; padding: .5em 1em; }
 .sublabel { color: #999; }
 .invalid { background: red; }
 END
@@ -490,7 +490,7 @@ q[
         #$OUT .= qq[  <caption><h2 class="sectionhead">$$section{head}</h2></caption>] if $$section{head};
         TABLE_LINE: for my $line (@{ $$section{lines} }) {
             if ($$line[0] eq 'head') {
-                $OUT .= qq[  <tr><th class="subhead" colspan="2"><h3>$$line[1]</h3></th></tr>\n]
+                $OUT .= qq[  <tr><th class="subhead" colspan="2"><h2>$$line[1]</h2></th></tr>\n]
             } elsif ($$line[0] eq 'note') {
                 $OUT .= qq[  <tr><td class="note" colspan="2">$$line[1]</td></tr>\n]
             } elsif ($$line[0] eq 'field') {
@@ -542,7 +542,6 @@ q[
         }
     }
 %>
-  <tr><td colspan="2"><hr /></td></tr>
   <tr><th></th><td style="padding-top: 1em;"><% $submit %></td></tr>
 </table>
 </fieldset>
@@ -1001,6 +1000,10 @@ To include a literal single-quote in a single-quoted string, escape it with
 a backslash:
 
     field_3|'\'Official\' title'
+
+Quoted strings are also how you can set the label for a field to be blank:
+
+    unlabeled_field|''
 
 Now, back to the beginning. Form fields are each described on a single line.
 The simplest field is just a name (which cannot contain any whitespace):
