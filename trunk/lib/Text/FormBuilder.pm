@@ -31,11 +31,15 @@ td ul { list-style: none; padding-left: 0; margin-left: 0; }
 .invalid { background: red; }
 END
 
+# default messages that can be localized
 my %DEFAULT_MESSAGES = (
-    text_formbuilder_created => 'Created by %s',
-    text_formbuilder_madewith => 'Made with %s',
-    text_formbuilder_required => 'Required fields are marked in <strong>bold</strong>.',
+    text_author   => 'Created by %s',
+    text_madewith => 'Made with %s version %s',
+    text_required => '(Required fields are marked in <strong>bold</strong>.)',
+    text_invalid  => 'Missing or invalid value.',
 );
+
+my $DEFAULT_CHARSET = 'iso-8859-1';
 
 sub new {
     my $invocant = shift;
@@ -97,6 +101,8 @@ sub build {
     # css, extra_css: allow for custom inline stylesheets
     #   neat trick: extra_css => '@import(my_external_stylesheet.css);'
     #   will let you use an external stylesheet
+    #   CSS Hint: to get multiple sections to all line up their fields,
+    #   set a standard width for th.label
     my $css;
     $css = $options{css} || $DEFAULT_CSS;
     $css .= $options{extra_css} if $options{extra_css};
@@ -114,7 +120,7 @@ sub build {
         } else {
             # filename, just *warn* on missing, and use defaults
             if (-f $options{messages} && -r _ && open(MESSAGES, "< $options{messages}")) {
-                $options{messages} = {};
+                $options{messages} = { %DEFAULT_MESSAGES };
                 while(<MESSAGES>) {
                     next if /^\s*#/ || /^\s*$/;
                     chomp;
@@ -123,16 +129,20 @@ sub build {
                 }
                 close MESSAGES;
             } else {
-                carp "Could not read messages file $options{messages}: $!";
+                carp "[Text::FormBuilder] Could not read messages file $options{messages}: $!";
             }
         }
+    } else {
+        $options{messages} = { %DEFAULT_MESSAGES };
     }
+    
+    my $charset = $options{charset};
     
     # save the build options so they can be used from write_module
     $self->{build_options} = { %options };
     
     # remove our custom options before we hand off to CGI::FormBuilder
-    delete $options{$_} foreach qw(form_only css extra_css);
+    delete $options{$_} foreach qw(form_only css extra_css charset);
     
     # expand groups
     my %groups = %{ $self->{form_spec}{groups} || {} };
@@ -229,7 +239,7 @@ sub build {
             type => 'Text',
             engine => {
                 TYPE       => 'STRING',
-                SOURCE     => $form_only ? $self->_form_template : $self->_template($css),
+                SOURCE     => $form_only ? $self->_form_template : $self->_template($css, $charset),
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
@@ -294,7 +304,9 @@ sub write_module {
             type => 'Text',
             engine => {
                 TYPE       => 'STRING',
-                SOURCE     => $self->{build_options}{form_only} ? $self->_form_template : $self->_template($css),
+                SOURCE     => $self->{build_options}{form_only} ? 
+                                $self->_form_template : 
+                                $self->_template($css, $self->{build_options}{charset}),
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
@@ -366,16 +378,16 @@ sub form {
 
 sub _form_template {
     my $self = shift;
-    #warn keys %{ $self->{build_options}{messages} };
-    my $msg_required = $self->{build_options}{messages}{text_formbuilder_required};
-    return q[<% $description ? qq[<p id="description">$description</p>] : '' %>
-<% (grep { $_->{required} } @fields) ? qq[<p id="instructions">(Required fields are marked in <strong>bold</strong>.)</p>] : '' %>
+    my $msg_required = $self->{build_options}{messages}{text_required};
+    my $msg_invalid = $self->{build_options}{messages}{text_invalid};
+    return q{<% $description ? qq[<p id="description">$description</p>] : '' %>
+<% (grep { $_->{required} } @fields) ? qq[<p id="instructions">} . $msg_required . q{</p>] : '' %>
 <% $start %>
 <%
     # drop in the hidden fields here
     $OUT = join("\n", map { $$_{field} } grep { $$_{type} eq 'hidden' } @fields);
-%>
-
+%>} .
+q[
 <%
     SECTION: while (my $section = shift @sections) {
         $OUT .= qq[<table id="] . ($$section{id} || '_default') . qq[">\n];
@@ -386,6 +398,7 @@ sub _form_template {
             } elsif ($$line[0] eq 'field') {
                 #TODO: we only need the field names, not the full field spec in the lines strucutre
                 local $_ = $field{$$line[1]{name}};
+                
                 # skip hidden fields in the table
                 next TABLE_LINE if $$_{type} eq 'hidden';
                 
@@ -400,7 +413,7 @@ sub _form_template {
                 
                 # mark invalid fields
                 if ($$_{invalid}) {
-                    $OUT .= qq[<td>$$_{field} $$_{comment} Missing or invalid value.</td>];
+                    $OUT .= "<td>$$_{field} $$_{comment} ] . $msg_invalid . q[</td>";
                 } else {
                     $OUT .= qq[<td>$$_{field} $$_{comment}</td>];
                 }
@@ -433,12 +446,16 @@ sub _form_template {
 ];
 }
 
+# usage: $self->_pre_template($css, $charset)
 sub _pre_template {
     my $self = shift;
     my $css = shift || $DEFAULT_CSS;
+    my $charset = shift || $DEFAULT_CHARSET;
+    my $msg_author = 'sprintf("' . quotemeta($self->{build_options}{messages}{text_author}) . '", $author)';
     return 
 q[<html>
 <head>
+  <meta http-equiv="Content-Type" content="text/html; charset=] . $charset . q[" />
   <title><% $title %><% $author ? ' - ' . ucfirst $author : '' %></title>
   <style type="text/css">
 ] .
@@ -449,14 +466,18 @@ q[  </style>
 <body>
 
 <h1><% $title %></h1>
-<% $author ? qq[<p id="author">Created by $author</p>] : '' %>
-];
+<% $author ? qq[<p id="author">] . ] . $msg_author . q{ . q[</p>] : '' %>
+};
 }
 
 sub _post_template {
-q[<hr />
+    my $self = shift;
+    my $msg_madewith = 'sprintf("' . quotemeta($self->{build_options}{messages}{text_madewith}) .
+        '", q[<a href="http://formbuilder.org/">CGI::FormBuilder</a>], CGI::FormBuilder->VERSION)';
+    
+    return qq[<hr />
 <div id="footer">
-  <p id="creator">Made with <a href="http://formbuilder.org/">CGI::FormBuilder</a> version <% CGI::FormBuilder->VERSION %>.</p>
+  <p id="creator"><% $msg_madewith %></p>
 </div>
 </body>
 </html>
@@ -465,8 +486,7 @@ q[<hr />
 
 sub _template {
     my $self = shift;
-    my $css = shift || $DEFAULT_CSS;
-    return $self->_pre_template($css) . $self->_form_template . $self->_post_template;
+    return $self->_pre_template(@_) . $self->_form_template . $self->_post_template;
 }
 
 sub dump { 
@@ -553,6 +573,27 @@ replace the existing CSS, and a value given as C<extra_css> will be
 appended to the CSS. If both options are given, then the CSS that is
 used will be C<css> concatenated with C<extra_css>.
 
+=item C<messages>
+
+This works the same way as the C<messages> parameter to 
+C<< CGI::FormBuilder->new >>; you can provide either a hashref of messages
+or a filename.
+
+The default messages used by Text::FormBuilder are:
+
+    text_author       Created by %s
+    text_madewith     Made with %s version %s
+    text_required     (Required fields are marked in <strong>bold</strong>.)
+    text_invalid      Missing or invalid value.
+
+Any messages you set here get passed on to CGI::FormBuilder, which means
+that you should be able to put all of your customization messages in one
+big file.
+
+=item C<charset>
+
+Sets the character encoding for the generated page. The default is ISO-8859-1.
+
 =back
 
 All other options given to C<build> are passed on verbatim to the
@@ -584,9 +625,6 @@ dropdown lists or change input types at runtime.
 
 Calls C<render> on the FormBuilder form, and either writes the resulting
 HTML to a file, or to STDOUT if no filename is given.
-
-CSS Hint: to get multiple sections to all line up their fields, set a
-standard width for th.label
 
 =head2 write_module
 
@@ -725,18 +763,21 @@ a backslash:
 
     field_3|'\'Official\' title'
 
-Now, back to the basics. Form fields are each described on a single line.
+Now, back to the beginning. Form fields are each described on a single line.
 The simplest field is just a name (which cannot contain any whitespace):
 
     color
 
 This yields a form with one text input field of the default size named `color'.
-The label for this field as generated by CGI::FormBuilder would be ``Color''.
-To add a longer or more descriptive label, use:
+The generated label for this field would be ``Color''. To add a longer or more\
+descriptive label, use:
 
     color|Favorite color
 
-The descriptive label can be a multiword string, as described above.
+The descriptive label can be a multiword string, as described above. So if you
+want punctuation in the label, you should single quote it:
+
+    color|'Fav. color'
 
 To use a different input type:
 
@@ -852,14 +893,10 @@ Any line beginning with a C<#> is considered a comment.
 
 Allow for custom wrappers around the C<form_template>
 
-Use the custom message file format for messages in the built in template (i18n/l10n)
-
 Maybe use HTML::Template instead of Text::Template for the built in template
 (since CGI::FormBuilder users may be more likely to already have HTML::Template)
 
 Better examples in the docs (maybe a standalone or two as well)
-
-Document the defaults that are passed to CGI::FormBuilder
 
 C<!include> directive to include external formspec files
 
@@ -881,7 +918,7 @@ sections.
 
 =head1 AUTHOR
 
-Peter Eichman <peichman@cpan.org>
+Peter Eichman C<< <peichman@cpan.org> >>
 
 =head1 COPYRIGHT AND LICENSE
 
