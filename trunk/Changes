@@ -8,6 +8,7 @@ Release history for Text::FormBuilder.
     * generated code leaves out overwrriten options
     * allow option lists to have simple multiword and quoted
       string values
+    * allow for validated but not required fields
     
 0.05 -  9 Nov 2004
     * First CPAN release

@@ -84,11 +84,6 @@ sub build {
         }
     }
     
-    # remove extraneous undefined values
-    for my $field (@{ $self->{form_spec}{fields} }) {
-        defined $$field{$_} or delete $$field{$_} foreach keys %{ $field };
-    }
-    
     # so we don't get all fields required
     foreach (@{ $self->{form_spec}{fields} }) {
         delete $$_{validate} unless $$_{validate};
@@ -144,11 +139,20 @@ sub build {
         $$_{ulist} = 1 if defined $$_{options} and @{ $$_{options} } >= 3;
     }
     
-
+    # remove extraneous undefined values
+    for my $field (@{ $self->{form_spec}{fields} }) {
+        defined $$field{$_} or delete $$field{$_} foreach keys %{ $field };
+    }
+    
+    # because this messes up things at the CGI::FormBuilder::field level
+    # it seems to be marking required based on the existance of a 'required'
+    # param, not whether it is true or defined
+    $$_{required} or delete $$_{required} foreach @{ $self->{form_spec}{fields} };
 
     
     $self->{form} = CGI::FormBuilder->new(
         %DEFAULT_OPTIONS,
+        required => [ map { $$_{name} } grep { $$_{required} } @{ $self->{form_spec}{fields} } ],
         title => $self->{form_spec}{title},
         template => {
             type => 'Text',
@@ -217,6 +221,7 @@ sub write_module {
     my %options = (
         %DEFAULT_OPTIONS,
         title => $self->{form_spec}{title},
+        required => [ map { $$_{name} } grep { $$_{required} } @{ $self->{form_spec}{fields} } ],
         template => {
             type => 'Text',
             engine => {
@@ -326,11 +331,9 @@ q[<% $description ? qq[<p id="description">$description</p>] : '' %>
         my @group_fields = map { $field{$_} } @field_names;
         $OUT .= (grep { $$_{invalid} } @group_fields) ? qq[  <tr class="invalid">\n] : qq[  <tr>\n];
         
-        
         #TODO: validated but not required fields
         # in a form spec: //EMAIL?
         
-        #TODO: this doesn't seem to be working; all groups are getting marked as required        
         $OUT .= '    <th class="label">';
         $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}:</strong>] : "$$line[1]{label}:";
         $OUT .= qq[</th>\n];
@@ -361,6 +364,7 @@ q[<html>
     th.label { font-weight: normal; text-align: right; vertical-align: top; }
     td ul { list-style: none; padding-left: 0; margin-left: 0; }
     .sublabel { color: #999; }
+    .invalid { background: red; }
   </style>
 </head>
 <body>
@@ -585,8 +589,25 @@ next to each other.
 
 =head2 Fields
 
-Form fields are each described on a single line. The simplest field is just a
-name:
+First, a note about multiword strings in the fields. Anywhere where it says
+that you may use a multiword string, this means that you can do one of two
+things. For strings that consist solely of alphanumeric characters (i.e.
+C<\w+>) and spaces, the string will be recognized as is:
+
+    field_1|A longer label
+
+If you want to include non-alphanumerics (e.g. punctuation), you must 
+single-quote the string:
+
+    field_2|'Dept./Org.'
+
+To include a literal single-quote in a single-quoted string, escape it with
+a backslash:
+
+    field_3|'\'Official\' title'
+
+Now, back to the basics. Form fields are each described on a single line.
+The simplest field is just a name (which cannot contain any whitespace):
 
     color
 
@@ -596,7 +617,7 @@ To add a longer or more descriptive label, use:
 
     color|Favorite color
 
-Field names cannot contain whitespace, but the descriptive label can.
+The descriptive label can be a multiword string, as described above.
 
 To use a different input type:
 
@@ -628,16 +649,13 @@ C<checkbox>), here's how you do it:
 
     color|Favorite color:select{red,blue,green}
 
-Values are in a comma-separated list inside curly braces. Whitespace
-between values is irrelevant, although there cannot be any whitespace
-within a value.
+Values are in a comma-separated list of single words or multiword strings
+inside curly braces. Whitespace between values is irrelevant.
 
 To add more descriptive display text to a vlaue in a list, add a square-bracketed
 ``subscript,'' as in:
 
     ...:select{red[Scarlet],blue[Azure],green[Olive Drab]}
-
-As you can see, spaces I<are> allowed within the display text for a value.
 
 If you have a list of options that is too long to fit comfortably on one line,
 consider using the C<!list> directive:
@@ -660,15 +678,17 @@ are stuffed into the list. The C<eval>ed code can either return a simple
 list, as the example does, or the fancier C<< ( { value1 => 'Description 1'},
 { value2 => 'Description 2}, ... ) >> form.
 
-B<NOTE:> This feature of the language may go away unless I find a compelling
+I<B<NOTE:> This feature of the language may go away unless I find a compelling
 reason for it in the next few versions. What I really wanted was lists that
 were filled in at run-time (e.g. from a database), and that can be done easily
-enough with the CGI::FormBuilder object directly.
+enough with the CGI::FormBuilder object directly.>
 
 You can also supply a default value to the field. To get a default value of
 C<green> for the color field:
 
     color|Favorite color:select=green{red,blue,green}
+
+Default values can also be either single words or multiword strings.
 
 To validate a field, include a validation type at the end of the field line:
 
@@ -686,6 +706,14 @@ If you just want a required value, use the builtin validation type C<VALUE>:
 
     title//VALUE
 
+By default, adding a validation type to a field makes that field required. To
+change this, add a C<?> to the end of the validation type:
+
+    contact//EMAIL?
+
+In this case, you would get a C<contact> field that was optional, but if it
+were filled in, would have to validate as an C<EMAIL>.
+
 =head2 Comments
 
     # comment ...
@@ -700,8 +728,6 @@ Use the custom message file format for messages in the built in template
 
 C<!section> directive to split up the table into multiple tables, each
 with their own id and (optional) heading
-
-Optional validated fields; marked like C<//EMAIL?>
 
 Better examples in the docs (maybe a standalone or two as well)
 

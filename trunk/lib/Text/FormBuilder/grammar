@@ -13,6 +13,7 @@
 	@headings,
 	$type,
 	@options,
+	$required,
 	$list_var,
 	$size,
 	$rows,
@@ -104,6 +105,7 @@ field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) val
 	    value    => $item{'default(?)'}[0],
             list     => $list_var,
             validate => $item{'validate(?)'}[0],
+	    required => $required || 0,
 	};
 	
 	$$field{options} = [ @options ] if @options;
@@ -120,7 +122,10 @@ field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) val
 	    push @lines, [ 'field', $field ];
 	}
 	
+	#warn "field $item{name} is required" if $required;
+	
 	$type = undef;
+	$required = 0;
 	$list_var = undef;
 	$size = undef;
 	$rows = undef;
@@ -163,14 +168,18 @@ options: '{' option(s /,\s*/) '}'
 
 list_var: /@[A-Z_]+/ { $list_var = $item[1] }
 
-option: (simple_multiword | quoted_string) display_text(?)
+option: (value | simple_multiword | quoted_string) display_text(?)
     { push @options, { $item[1] => $item{'display_text(?)'}[0] } }
 
 value: identifier
 
 display_text: '[' /[^\]]+/i ']'    { $item[2] }
 
-validate: '//' value
+validate: '//' (optional_pattern | required_pattern)    { $item[2] }
+
+optional_pattern: /[A-Z_]+/ '?'	{ $required = 0; $item[1] }
+
+required_pattern: /[A-Z_]+/ { $required = 1; $item[1] }
 
 comment: '#' /.*/
 blank:
