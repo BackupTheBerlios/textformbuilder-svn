@@ -5,13 +5,13 @@ use warnings;
 
 use vars qw($VERSION);
 
-$VERSION = '0.06_01';
+$VERSION = '0.06_02';
 
 use Carp;
 use Text::FormBuilder::Parser;
 use CGI::FormBuilder;
 
-# the default options passed to CGI::FormBuilder->new
+# the static default options passed to CGI::FormBuilder->new
 my %DEFAULT_OPTIONS = (
     method => 'GET',
     javascript => 0,
@@ -76,7 +76,7 @@ sub build {
     delete $options{form_only};
     
     # substitute in custom pattern definitions for field validation
-    if (my %patterns = %{ $self->{form_spec}{patterns} }) {
+    if (my %patterns = %{ $self->{form_spec}{patterns} || {} }) {
         foreach (@{ $self->{form_spec}{fields} }) {
             if ($$_{validate} and exists $patterns{$$_{validate}}) {
                 $$_{validate} = $patterns{$$_{validate}};
@@ -84,14 +84,9 @@ sub build {
         }
     }
     
-##     # so we don't get all fields required
-##     foreach (@{ $self->{form_spec}{fields} }) {
-##         delete $$_{validate} unless $$_{validate};
-##     }
-
     # expand groups
-    my %groups = %{ $self->{form_spec}{groups} };
-    foreach (grep { $$_[0] eq 'group' } @{ $self->{form_spec}{lines} }) {
+    my %groups = %{ $self->{form_spec}{groups} || {} };
+    foreach (grep { $$_[0] eq 'group' } @{ $self->{form_spec}{lines} || [] }) {
         $$_[1]{group} =~ s/^\%//;       # strip leading % from group var name
         
         if (exists $groups{$$_[1]{group}}) {
@@ -106,7 +101,7 @@ sub build {
     }
     
     $self->{form_spec}{fields} = [];
-    for my $line (@{ $self->{form_spec}{lines} }) {
+    for my $line (@{ $self->{form_spec}{lines} || [] }) {
         if ($$line[0] eq 'group') {
             push @{ $self->{form_spec}{fields} }, $_ foreach @{ $$line[1]{group} };
         } elsif ($$line[0] eq 'field') {
@@ -116,7 +111,7 @@ sub build {
     
     
     # substitute in list names
-    my %lists = %{ $self->{form_spec}{lists} };
+    my %lists = %{ $self->{form_spec}{lists} || {} };
     foreach (@{ $self->{form_spec}{fields} }) {
         next unless $$_{list};
         
@@ -168,7 +163,6 @@ sub build {
             },
             data => {
                 lines       => $self->{form_spec}{lines},
-                headings    => $self->{form_spec}{headings},
                 author      => $self->{form_spec}{author},
                 description => $self->{form_spec}{description},
             },
@@ -215,14 +209,6 @@ sub write_module {
     # don't dump $VARn names
     $Data::Dumper::Terse = 1;
     
-    my $title       = $self->{form_spec}{title} || '';
-    my $author      = $self->{form_spec}{author} || '';
-    my $description = $self->{form_spec}{description} || '';
-    
-    my $headings    = Data::Dumper->Dump([$self->{form_spec}{headings}],['headings']);
-    my $lines       = Data::Dumper->Dump([$self->{form_spec}{lines}],['lines']);
-    my $fields      = Data::Dumper->Dump([ [ map { $$_{name} } @{ $self->{form_spec}{fields} } ] ],['fields']);
-    
     my %options = (
         %DEFAULT_OPTIONS,
         title => $self->{form_spec}{title},
@@ -237,7 +223,6 @@ sub write_module {
             },
             data => {
                 lines       => $self->{form_spec}{lines},
-                headings    => $self->{form_spec}{headings},
                 author      => $self->{form_spec}{author},
                 description => $self->{form_spec}{description},
             },
@@ -336,9 +321,6 @@ q[<% $description ? qq[<p id="description">$description</p>] : '' %>
         my @field_names = map { $$_{name} } @{ $$line[1]{group} };
         my @group_fields = map { $field{$_} } @field_names;
         $OUT .= (grep { $$_{invalid} } @group_fields) ? qq[  <tr class="invalid">\n] : qq[  <tr>\n];
-        
-        #TODO: validated but not required fields
-        # in a form spec: //EMAIL?
         
         $OUT .= '    <th class="label">';
         $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}:</strong>] : "$$line[1]{label}:";
@@ -739,12 +721,13 @@ Any line beginning with a C<#> is considered a comment.
 
 =head1 TODO
 
-DWIM for single valued checkboxes (e.g. C<moreinfo|Send me more info:checkbox>)
-
 Use the custom message file format for messages in the built in template
 
 C<!section> directive to split up the table into multiple tables, each
 with their own id and (optional) heading
+
+Use HTML::Template instead of Text::Template for the built in template
+(since CGI::FormBuilder users may be more likely to already have HTML::Template)
 
 Better examples in the docs (maybe a standalone or two as well)
 

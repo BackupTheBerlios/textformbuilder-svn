@@ -7,10 +7,8 @@
 	$description,
 	%lists,
 	%patterns,
-	@fields,
 	@group,        # current group
 	%groups,       # stored groups of fields
-	@headings,
 	$type,
 	@options,
 	$required,
@@ -22,18 +20,16 @@
     $context = 'line';
 }
 
-form_spec: (list_def | description_def | group_def | line)(s) 
+form_spec: (list_def | description_def | group_def | line)(s)
     {
 	$return = {
 	    title    => $title,
 	    author   => $author,
 	    description => $description,
-	    lists    => \%lists    || {}, 
-	    patterns => \%patterns || {}, 
-	    headings => \@headings || [],
-	    fields   => \@fields   || [],
-	    lines    => \@lines    || [],
-	    groups   => \%groups   || {},
+	    lists    => \%lists,
+	    patterns => \%patterns,
+	    lines    => \@lines,
+	    groups   => \%groups,
 	}
     }
 
@@ -70,27 +66,27 @@ field_line: <skip:'[ \t]*'> ( field | comment | blank ) "\n"
 line: <skip:'[ \t]*'> ( title | author | pattern_def | heading | group_field | unknown_directive | field | comment | blank ) "\n"
 
 title: '!title' /.*/
-    { warn "[Text::Formbuilder] Title redefined at input text line $thisline\n" if defined $title;
-    $title = $item[2] }
+    {
+	warn "[Text::Formbuilder] Title redefined at input text line $thisline\n" if defined $title;
+	$title = $item[2];
+    }
 
 author: '!author' /.*/
-    { $author = $item[2] }
+    {
+	warn "[Text::Formbuilder] Author redefined at input text line $thisline\n" if defined $author;
+	$author = $item[2];
+    }
 
 pattern_def: '!pattern' var_name pattern
     { $patterns{$item{var_name}} = $item{pattern} }
 
 pattern: /.*/
 
-heading: '!head' /.*/
-    {
-	warn "[Text::FormBuilder] Header before field " . scalar(@fields) . " redefined at input text line $thisline\n" if defined $headings[@fields];
-	$headings[@fields] = $item[2];
-	push @lines, [ 'head', $item[2] ];
-    }
+heading: '!head' /.*/    { push @lines, [ 'head', $item[2] ] }
 
 group_field: '!field' group_name name label(?)
-    { #warn "[$thisline] $item{group_name}\n"; 
-    push @lines, [ 'group', { name => $item{name}, label => $item{'label(?)'}[0], group => $item{group_name} } ];
+    { 
+	push @lines, [ 'group', { name => $item{name}, label => $item{'label(?)'}[0], group => $item{group_name} } ];
     }
 
 group_name: /%[A-Z_]+/
@@ -114,15 +110,12 @@ field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) val
 	$$field{cols} = $cols if defined $cols;
 	$$field{size} = $size if defined $size;
 	
-	#warn "[$thisline] field $item{name}; context $context\n";   
+	#warn "[$thisline] field $item{name}; context $context\n";
 	if ($context eq 'group') {
 	    push @group, $field;
 	} else {
-	    push @fields, $field;
 	    push @lines, [ 'field', $field ];
 	}
-	
-	#warn "field $item{name} is required" if $required;
 	
 	$type = undef;
 	$required = 0;
