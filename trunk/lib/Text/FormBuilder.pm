@@ -15,6 +15,10 @@ use Carp;
 use Text::FormBuilder::Parser;
 use CGI::FormBuilder;
 
+use Data::Dumper;
+$Data::Dumper::Terse = 1;           # don't dump $VARn names
+$Data::Dumper::Quotekeys = 0;       # don't quote simple string keys
+
 # the static default options passed to CGI::FormBuilder->new
 my %DEFAULT_OPTIONS = (
     method => 'GET',
@@ -261,7 +265,8 @@ sub build {
         }
     }
     
-    $self->{form} = CGI::FormBuilder->new(
+    # gather together all of the form options
+    $self->{form_options} = {
         %DEFAULT_OPTIONS,
         # need to explicity set the fields so that simple text fields get picked up
         fields   => [ map { $$_{name} } @{ $self->{form_spec}{fields} } ],
@@ -282,7 +287,12 @@ sub build {
             },
         },
         %options,
-    );
+    };
+    
+    # create the form object
+    $self->{form} = CGI::FormBuilder->new(%{ $self->{form_options} });
+    
+    # ...and set up its fields
     $self->{form}->field(%{ $_ }) foreach @{ $self->{form_spec}{fields} };
     
     # mark structures as built
@@ -307,73 +317,23 @@ sub write {
     }
 }
 
-# generates the core code to create the $form object
-# the generated code assumes that you have a CGI.pm
-# object named $q
-sub _form_code {
+# dump the form options as eval-able code
+sub _form_options_code {
     my $self = shift;
-    
-    # automatically call build if needed to
-    # allow the new->parse->write shortcut
-    $self->build unless $self->{built};
-    
-    # conditionally use Data::Dumper
-    eval 'use Data::Dumper;';
-    die "Can't write module; need Data::Dumper. $@" if $@;
-    
-    $Data::Dumper::Terse = 1;           # don't dump $VARn names
-    $Data::Dumper::Quotekeys = 0;       # don't quote simple string keys
-    
-    my $css;
-    $css = $self->{build_options}{css} || $DEFAULT_CSS;
-    $css .= $self->{build_options}{extra_css} if $self->{build_options}{extra_css};
-    
-    my %options = (
-        %DEFAULT_OPTIONS,
-        title => $self->{form_spec}{title},
-        text  => $self->{form_spec}{description},
-        fields   => [ map { $$_{name} } @{ $self->{form_spec}{fields} } ],
-        required => [ map { $$_{name} } grep { $$_{required} } @{ $self->{form_spec}{fields} } ],
-        template => {
-            type => 'Text',
-            engine => {
-                TYPE       => 'STRING',
-                SOURCE     => $self->{build_options}{form_only} ? 
-                                $self->_form_template : 
-                                $self->_template($css, $self->{build_options}{charset}),
-                DELIMITERS => [ qw(<% %>) ],
-            },
-            data => {
-                sections    => $self->{form_spec}{sections},
-                author      => $self->{form_spec}{author},
-                description => $self->{form_spec}{description},
-            },
-        }, 
-        %{ $self->{build_options} },
-    );
-    
-    # remove our custom options
-    delete $options{$_} foreach qw(form_only css extra_css);
-    
-    my %module_subs;
-    my $d = Data::Dumper->new([ \%options ], [ '*options' ]);
-    
-    my $form_options = keys %options > 0 ? $d->Dump : '';
-    
-    my $field_setup = join(
-        "\n", 
-        map { '$form->field' . Data::Dumper->Dump([$_],['*field']) . ';' } @{ $self->{form_spec}{fields} }
-    );
-    
-    return <<END;
-my \$form = CGI::FormBuilder->new(
-    params => \$q,
-    $form_options
-);
-
-$field_setup
-END
+    my $d = Data::Dumper->new([ $self->{form_options} ], [ '*options' ]);
+    return keys %{ $self->{form_options} } > 0 ? $d->Dump : '';    
 }
+# dump the field setup subs as eval-able code
+# pass in the variable name of the form object
+# (defaults to '$form')
+sub _field_setup_code {
+    my $self = shift;
+    my $object_name = shift || '$form';
+    return join(
+        "\n", 
+        map { $object_name . '->field' . Data::Dumper->Dump([$_],['*field']) . ';' } @{ $self->{form_spec}{fields} }
+    );
+}    
 
 sub write_module {
     my ($self, $package, $use_tidy) = @_;
@@ -384,9 +344,12 @@ sub write_module {
     $package =~ s/\.pm$//;
 ##     warn  "[Text::FromBuilder::write_module] Removed extra '.pm' from package name\n" if $package =~ s/\.pm$//;
     
-    my $form_code = $self->_form_code;
+    my $form_options = $self->_form_options_code;
+    my $field_setup = $self->_field_setup_code('$self');
     
-    my $module = <<END;
+    # old style of module
+    # TODO: how to keep this (as deprecated method)
+    my $old_module = <<END;
 package $package;
 use strict;
 use warnings;
@@ -396,15 +359,46 @@ use CGI::FormBuilder;
 sub get_form {
     my \$q = shift;
 
-    $form_code
+    my \$self = CGI::FormBuilder->new(
+        $form_options,
+        \@_,
+    );
     
-    return \$form;
+    $field_setup
+    
+    return \$self;
 }
 
 # module return
 1;
 END
 
+    # new style of module
+    my $module = <<END;
+package $package;
+use strict;
+use warnings;
+
+use base qw(CGI::FormBuilder);
+
+sub new {
+    my \$invocant = shift;
+    my \$class = ref \$invocant || \$invocant;
+    
+    my \$self = CGI::FormBuilder->new(
+        $form_options,
+        \@_,
+    );
+    
+    $field_setup
+    
+    # re-bless into this class
+    bless \$self, \$class;
+}
+
+# module return
+1;
+END
     _write_output_file($module, (split(/::/, $package))[-1] . '.pm', $use_tidy);
     return $self;
 }
@@ -414,19 +408,21 @@ sub write_script {
 
     croak '[' . (caller(0))[3] . '] Expecting a script name' unless $script_name;
     
-    my $form_code = $self->_form_code;
-    
+    my $form_options = $self->_form_options_code;
+    my $field_setup = $self->_field_setup_code('$form');
+
     my $script = <<END;
 #!/usr/bin/perl
 use strict;
 use warnings;
 
-use CGI;
 use CGI::FormBuilder;
 
-my \$q = CGI->new;
+my \$form = CGI::FormBuilder->new(
+    $form_options
+);
 
-$form_code
+$field_setup
     
 unless (\$form->submitted && \$form->validate) {
     print \$form->render;
