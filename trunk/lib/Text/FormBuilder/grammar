@@ -10,6 +10,7 @@
 	$description,
 	%lists,
 	%patterns,
+	%subs,         # validation subs
 	@group,        # current group
 	%groups,       # stored groups of fields
 	$type,
@@ -23,7 +24,7 @@
     $context = 'line';
 }
 
-form_spec: (list_def | description_def | group_def | line)(s)
+form_spec: (list_def | description_def | validate_def | group_def | line)(s)
     {
 	# grab the last section, if there is any
 	if (@lines) {
@@ -44,6 +45,7 @@ form_spec: (list_def | description_def | group_def | line)(s)
 	    description => $description,
 	    lists    => \%lists,
 	    patterns => \%patterns,
+	    subs     => \%subs,
 	    groups   => \%groups,
 	    sections => \@sections,
 	}
@@ -70,6 +72,9 @@ description_def: '!description' <perl_codeblock>
     $description = $item[2];
     $description =~ s/^{\s*|\s*}$//g;
     }
+
+validate_def: '!validate' var_name <perl_codeblock>
+    { $subs{$item{var_name}} = $item[3] }
 
 group_def: '!group' { $context = 'group' } var_name '{' field_line(s) '}' { $context = 'line' }
     { 

@@ -41,6 +41,9 @@ my %DEFAULT_MESSAGES = (
 
 my $DEFAULT_CHARSET = 'iso-8859-1';
 
+# options to clean up the code with Perl::Tidy
+my $TIDY_OPTIONS = '-nolq -ci=4 -ce';
+
 sub new {
     my $invocant = shift;
     my $class = ref $invocant || $invocant;
@@ -176,11 +179,20 @@ sub build {
         }
     }
     
-    # substitute in custom pattern definitions for field validation
-    if (my %patterns = %{ $self->{form_spec}{patterns} || {} }) {
-        foreach (@{ $self->{form_spec}{fields} }) {
-            if ($$_{validate} and exists $patterns{$$_{validate}}) {
+    # substitute in custom validation subs and pattern definitions for field validation
+    my %patterns = %{ $self->{form_spec}{patterns} || {} };
+    my %subs = %{ $self->{form_spec}{subs} || {} };
+    
+    foreach (@{ $self->{form_spec}{fields} }) {
+        if ($$_{validate}) {
+            if (exists $patterns{$$_{validate}}) {
                 $$_{validate} = $patterns{$$_{validate}};
+            # TODO: need the Data::Dumper code to work for this
+            # for now, we just warn that it doesn't work
+            } elsif (exists $subs{$$_{validate}}) {
+                warn "[Text::FormBuilder] validate coderefs don't work yet";
+                delete $$_{validate};
+##                 $$_{validate} = eval "sub $subs{$$_{validate}}";
             }
         }
     }
@@ -228,6 +240,12 @@ sub build {
     # true or defined
     $$_{required} or delete $$_{required} foreach @{ $self->{form_spec}{fields} };
 
+    foreach (@{ $self->{form_spec}{sections} }) {
+        for my $line (grep { $$_[0] eq 'field' } @{ $$_{lines} }) {
+            $_ eq 'name' or delete $$line[1]{$_} foreach keys %{ $$line[1] };
+        }
+    }
+    
     $self->{form} = CGI::FormBuilder->new(
         %DEFAULT_OPTIONS,
         # need to explicity set the fields so that simple text fields get picked up
@@ -274,11 +292,8 @@ sub write {
     }
 }
 
-sub write_module {
-    my ($self, $package, $use_tidy) = @_;
-
-    croak '[Text::FormBuilder::write_module] Expecting a package name' unless $package;
-    
+sub _form_code {
+    my $self = shift;
     # automatically call build if needed to
     # allow the new->parse->write shortcut
     $self->build unless $self->{built};
@@ -321,12 +336,41 @@ sub write_module {
     # remove our custom options
     delete $options{$_} foreach qw(form_only css extra_css);
     
-    my $form_options = keys %options > 0 ? Data::Dumper->Dump([\%options],['*options']) : '';
+    my %module_subs;
+    my $d = Data::Dumper->new([ \%options ], [ '*options' ]);
+    
+    #TODO: need a workaround/better solution since Data::Dumper doesn't like dumping coderefs
+##     foreach (@{ $self->{form_spec}{fields} }) {
+##         if (ref $$_{validate} eq 'CODE') {
+##             $d->Seen({ "*_validate_$$_{name}" => $$_{validate} });
+##             $module_subs{$$_{name}} = "sub _validate_$$_{name} $$_{validate}";
+##         }
+##     }
+##     
+##     my $sub_code = join("\n", each %module_subs);
+    my $form_options = keys %options > 0 ? $d->Dump : '';
     
     my $field_setup = join(
         "\n", 
-        map { '$cgi_form->field' . Data::Dumper->Dump([$_],['*field']) . ';' } @{ $self->{form_spec}{fields} }
+        map { '$form->field' . Data::Dumper->Dump([$_],['*field']) . ';' } @{ $self->{form_spec}{fields} }
     );
+    
+    return <<END;
+my \$form = CGI::FormBuilder->new(
+    params => \$q,
+    $form_options
+);
+
+$field_setup
+END
+}
+
+sub write_module {
+    my ($self, $package, $use_tidy) = @_;
+
+    croak '[Text::FormBuilder::write_module] Expecting a package name' unless $package;
+    
+    my $form_code = $self->_form_code;
     
     my $module = <<END;
 package $package;
@@ -336,15 +380,11 @@ use warnings;
 use CGI::FormBuilder;
 
 sub get_form {
-    my \$cgi = shift;
-    my \$cgi_form = CGI::FormBuilder->new(
-        params => \$cgi,
-        $form_options
-    );
+    my \$q = shift;
+
+    $form_code
     
-    $field_setup
-    
-    return \$cgi_form;
+    return \$form;
 }
 
 # module return
@@ -353,18 +393,55 @@ END
 
     my $outfile = (split(/::/, $package))[-1] . '.pm';
     
+    _write_output_file($module, $outfile, $use_tidy);
+    return $self;
+}
+
+sub write_script {
+    my ($self, $script_name, $use_tidy) = @_;
+
+    croak '[Text::FormBuilder::write_script] Expecting a script name' unless $script_name;
+    
+    my $form_code = $self->_form_code;
+    
+    my $script = <<END;
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use CGI;
+use CGI::FormBuilder;
+
+my \$q = CGI->new;
+
+$form_code
+    
+unless (\$form->submitted && \$form->validate) {
+    print \$form->render;
+} else {
+    # do something with the entered data
+}
+END
+    
+    _write_output_file($script, $script_name, $use_tidy);   
+    return $self;
+}
+
+sub _write_output_file {
+    my ($source_code, $outfile, $use_tidy) = @_;
     if ($use_tidy) {
         # clean up the generated code, if asked
         eval 'use Perl::Tidy';
         die "Can't tidy the code: $@" if $@;
-        Perl::Tidy::perltidy(source => \$module, destination => $outfile, argv => '-nolq -ci=4');
+        Perl::Tidy::perltidy(source => \$source_code, destination => $outfile, argv => $TIDY_OPTIONS);
     } else {
         # otherwise, just print as is
-        open FORM, "> $outfile";
-        print FORM $module;
-        close FORM;
+        open OUT, "> $outfile" or die $!;
+        print OUT $source_code;
+        close OUT;
     }
 }
+
 
 sub form {
     my $self = shift;
@@ -694,6 +771,44 @@ will run L<Perl::Tidy> on the generated code before writing the module file.
 
     # write tidier code
     $parser->write_module('My::Form', 1);
+
+=head2 write_script
+
+    $parser->write_script($filename, $use_tidy);
+
+If you don't need the reuseability of a separate module, you can have
+Text::FormBuilder write the form object to a script for you, along with
+the simplest framework for using it, to which you can add your actual
+form processing code.
+
+The generated script looks like this:
+
+    #!/usr/bin/perl
+    use strict;
+    use warnings;
+    
+    use CGI;
+    use CGI::FormBuilder;
+    
+    my $q = CGI->new;
+    
+    my $form = CGI::FormBuilder->new(
+        params => $q,
+        # ... lots of other stuff to set up the form ...
+    );
+    
+    $form->field( name => 'month' );
+    $form->field( name => 'day' );
+    
+    unless ( $form->submitted && $form->validate ) {
+        print $form->render;
+    } else {
+        # do something with the entered data ...
+        # this is where your form processing code should go
+    }
+
+Like C<write_module>, you can optionally pass a true value as the second
+argument to have Perl::Tidy make the generated code look nicer.
 
 =head2 dump
 
