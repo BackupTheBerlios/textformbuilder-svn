@@ -1,4 +1,5 @@
-{ 
+{
+    #$::RD_TRACE = 1;
     my (
 	$context,      # line or group
 	@sections,     # master data structure
@@ -55,7 +56,7 @@ form_spec: (list_def | description_def | validate_def | group_def | note | line)
 list_def: '!list' var_name (static_list | dynamic_list)
     { $lists{$item{var_name}} = [ @options ]; @options = () }
 
-static_list: '{' option(s /,\s*/) /,?/ '}'
+static_list: '{' /\s*/ option(s /\s*,\s*/) /,?/ /\s*/ '}'
 
 dynamic_list: '&' <perl_codeblock>
     {
@@ -159,14 +160,15 @@ field_group: name label(?) group_type
 group_type: ':' var_name
 
 # this is the real heart of the thing
-field: name field_size(?) growable(?) label(?) hint(?) type(?) default(?) option_list(?) validate(?)
+field: name field_size(?) growable(?) label(?) hint(?) type(?) other(?) default(?) option_list(?) validate(?) comment(?)
     {
 	my $field = {
 	    name     => $item{name},
-	    growable => ($item{'growable(?)'}[0] ? 1 : 0),
+	    growable => $item{'growable(?)'}[0],
 	    label    => $item{'label(?)'}[0],
 	    comment  => $item{'hint(?)'}[0],
 	    type     => $item{'type(?)'}[0],
+	    other    => $item{'other(?)'}[0],
 	    value    => $item{'default(?)'}[0],
 	    list     => $list_var,
 	    validate => $item{'validate(?)'}[0],
@@ -213,7 +215,9 @@ bang: '!'
 row_col: /\d+/ /,\s*/ /\d+/
     { $rows = $item[1]; $cols = $item[3] }
 
-growable: '*'
+growable: '*' limit(?) { $item{'limit(?)'}[0] || 1 }
+
+limit: /\d+/
 
 label: '|' (simple_multiword | quoted_string) { $item[2] }
 
@@ -223,11 +227,12 @@ type: ':' builtin_field
 
 builtin_field: /textarea|text|password|file|checkbox|radio|select|hidden|static/
 
+other: '+' 'other' { 1 }
 
 default: '=' (simple_multiword | quoted_string) { $item[2] }
 
 # for simple multiword values not involving punctuation
-simple_multiword: <skip:''> /[\w\t ]+/ { $item[2] }
+simple_multiword: <skip:''> /\w[\w\t ]+/ { $item[2] }
 
 # my attempt at a single-quoted, non-interpolating string
 # where the backslash can escape literal single quotes
@@ -236,11 +241,11 @@ quoted_string: <skip:''> "'" /(\\'|[^'])*/ "'"
 
 option_list: options | list_var
     
-options: '{' option(s /,\s*/) '}'
+options: '{' option(s /,/) '}'
 
 list_var: /@[A-Z_]+/ { $list_var = $item[1] }
 
-option: (simple_multiword | value | quoted_string) display_text(?)
+option: (simple_multiword | quoted_string) display_text(?)
     { push @options, { $item[1] => $item{'display_text(?)'}[0] } }
 
 value: identifier

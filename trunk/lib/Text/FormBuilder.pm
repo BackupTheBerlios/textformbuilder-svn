@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter Class::ParseText::Base);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.09';
+$VERSION = '0.10';
 @EXPORT = qw(create_form);
 
 #$::RD_TRACE = 1;
@@ -240,10 +240,12 @@ sub build {
     for my $field (@{ $self->{form_spec}{fields} }) {
         defined $$field{$_} or delete $$field{$_} foreach keys %{ $field };
         
-        unless ($FB_version >= '3.002') {
-            if ($$field{growable}) {
-                warn '[' . (caller(0))[3] . "] growable fields not supported by FB $FB_version (requires 3.002)";
-                delete $$field{growable};
+        unless ($FB_version >= '3.02') {
+            for (qw(growable other)) {
+                if ($$field{$_}) {
+                    warn '[' . (caller(0))[3] . "] '$_' fields not supported by FB $FB_version (requires 3.02)";
+                    delete $$field{$_};
+                }
             }
         }
     }    
@@ -508,7 +510,7 @@ q[
                 if ($$_{type} eq 'checkbox' && @{ $$_{options} } == 1) {
                     $OUT .= qq[<th></th>];
                 } else {
-                    $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
+                    $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}</strong>] : "$$_{label}") . '</th>';
                 }
                 
                 # mark invalid fields
@@ -1159,9 +1161,13 @@ Any line beginning with a C<#> is considered a comment.
 
 =head1 TODO
 
-Document the commmand line tool
+=head2 Documentation/Tests
 
 Document use of the parser as a standalone module
+
+Better tests!
+
+=head2 Language/Parser
 
 Allow renaming of the submit button; allow renaming and inclusion of a 
 reset button
@@ -1171,16 +1177,21 @@ Allow comments on group fields (rendered after the all the fields)
 Pieces that wouldn't make sense in a group field: size, row/col, options,
 validate. These should cause C<build> to emit a warning before ignoring them.
 
+C<!include> directive to include external formspec files
+
+=head2 Code generation/Templates
+
+Alternative format using C<< <fieldset> >> tags instead of C<< <h2> >>
+section headers
+
 Make the generated modules into subclasses of CGI::FormBuilder
+
+Better integration with L<CGI::FormBuilder>'s templating system
 
 Allow for custom wrappers around the C<form_template>
 
 Maybe use HTML::Template instead of Text::Template for the built in template
 (since CGI::FormBuilder users may be more likely to already have HTML::Template)
-
-C<!include> directive to include external formspec files
-
-Better tests!
 
 =head1 BUGS
 
