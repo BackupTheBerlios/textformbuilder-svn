@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.07_03';
+$VERSION = '0.07';
 @EXPORT = qw(create_form);
 
 use Carp;
@@ -29,6 +29,7 @@ th { text-align: left; }
 th h3 { padding: .125em .5em; background: #eee; }
 th.label { font-weight: normal; text-align: right; vertical-align: top; }
 td ul { list-style: none; padding-left: 0; margin-left: 0; }
+.note { background: #eee; }
 .sublabel { color: #999; }
 .invalid { background: red; }
 END
@@ -245,26 +246,29 @@ sub build {
         }
     }
     
+    # get user-defined lists; can't make this conditional because
+    # we need to be able to fall back to CGI::FormBuilder's lists
+    # even if the user didn't define any
+    my %lists = %{ $self->{form_spec}{lists} || {} };
+    
     # substitute in list names
-    if (my %lists = %{ $self->{form_spec}{lists} || {} }) {
-        foreach (@{ $self->{form_spec}{fields} }) {
-            next unless $$_{list};
-            
-            $$_{list} =~ s/^\@//;   # strip leading @ from list var name
-            
-            # a hack so we don't get screwy reference errors
-            if (exists $lists{$$_{list}}) {
-                my @list;
-                push @list, { %$_ } foreach @{ $lists{$$_{list}} };
-                $$_{options} = \@list;
-            } else {
-                # assume that the list name is a builtin 
-                # and let it fall through to CGI::FormBuilder
-                $$_{options} = $$_{list};
-            }
-        } continue {
-            delete $$_{list};
+    foreach (@{ $self->{form_spec}{fields} }) {
+        next unless $$_{list};
+        
+        $$_{list} =~ s/^\@//;   # strip leading @ from list var name
+        
+        # a hack so we don't get screwy reference errors
+        if (exists $lists{$$_{list}}) {
+            my @list;
+            push @list, { %$_ } foreach @{ $lists{$$_{list}} };
+            $$_{options} = \@list;
+        } else {
+            # assume that the list name is a builtin 
+            # and let it fall through to CGI::FormBuilder
+            $$_{options} = $$_{list};
         }
+    } continue {
+        delete $$_{list};
     }
     
     # special case single-value checkboxes
@@ -534,6 +538,8 @@ q[
         TABLE_LINE: for my $line (@{ $$section{lines} }) {
             if ($$line[0] eq 'head') {
                 $OUT .= qq[  <tr><th class="subhead" colspan="2"><h3>$$line[1]</h3></th></tr>\n]
+            } elsif ($$line[0] eq 'note') {
+                $OUT .= qq[  <tr><td class="note" colspan="2">$$line[1]</td></tr>\n]
             } elsif ($$line[0] eq 'field') {
                 local $_ = $field{$$line[1]};
                 
@@ -958,6 +964,10 @@ Any of these can be overriden by the C<build> method:
     !section id heading
     
     !head ...
+    
+    !note {
+        ...
+    }
 
 =head2 Directives
 
@@ -982,7 +992,11 @@ Include a named instance of a group defined with C<!group>.
 
 =item C<!title>
 
+Title of the form.
+
 =item C<!author>
+
+Author of the form.
 
 =item C<!description>
 
@@ -1000,7 +1014,16 @@ Inserts a heading between two fields. There can only be one heading between
 any two fields; the parser will warn you if you try to put two headings right
 next to each other.
 
+=item C<!note>
+
+A text note that can be inserted as a row in the form. This is useful for
+special instructions at specific points in a long form.
+
 =back
+
+B<Known BUG:> If you include an odd number of C<'> or C<"> characters in a
+C<!description> or C<!note>, then that directive will mistakenly be skipped.
+This is a bug casued by me taking a shortcut in the parser C<:-/>
 
 =head2 Fields
 
@@ -1184,6 +1207,10 @@ Better tests!
 
 =head1 BUGS
 
+Having a single C<'> or C<"> in a C<!description> or C<!note> directive causes that
+directive to get skipped. This is an issue with the C<perl_codeblock> shortcut in
+Parse::RecDescent.
+
 Creating two $parsers in the same script causes the second one to get the data
 from the first one.
 
@@ -1193,7 +1220,9 @@ Suggestions on how to improve the (currently tiny) test suite would be appreciat
 
 =head1 SEE ALSO
 
-L<CGI::FormBuilder>
+L<http://textformbuilder.berlios.de>
+
+L<CGI::FormBuilder>, L<http://formbuilder.org>
 
 =head1 THANKS
 

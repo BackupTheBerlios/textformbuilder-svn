@@ -24,7 +24,7 @@
     $context = 'line';
 }
 
-form_spec: (list_def | description_def | validate_def | group_def | line)(s)
+form_spec: (list_def | description_def | validate_def | group_def | note | line)(s)
     {
 	# grab the last section, if there is any
 	if (@lines) {
@@ -82,6 +82,13 @@ group_def: '!group' { $context = 'group' } var_name '{' field_line(s) '}' { $con
 	$groups{$item{var_name}} = [ @group ];
 	@group = ();
     }
+
+note: '!note' <perl_codeblock>
+    {   
+	(my $note = $item[2]) =~ s/^{\s*|\s*}$//g;
+	push @lines, [ 'note', $note ];
+    }
+
 
 field_line: <skip:'[ \t]*'> ( field | comment | blank ) "\n"
 line: <skip:'[ \t]*'> ( title | author | pattern_def | section_head | heading | group_field | unknown_directive | field | comment | blank ) "\n"
