@@ -5,7 +5,7 @@ use warnings;
 
 use vars qw($VERSION);
 
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 use Carp;
 use Text::FormBuilder::Parser;
@@ -86,6 +86,32 @@ sub build {
     foreach (@{ $self->{form_spec}{fields} }) {
         delete $$_{validate} unless $$_{validate};
     }
+
+    # expand groups
+    my %groups = %{ $self->{form_spec}{groups} };
+    foreach (grep { $$_[0] eq 'group' } @{ $self->{form_spec}{lines} }) {
+        $$_[1]{group} =~ s/^\%//;       # strip leading % from group var name
+        
+        if (exists $groups{$$_[1]{group}}) {
+            my @fields; # fields in the group
+            push @fields, { %$_ } foreach @{ $groups{$$_[1]{group}} };
+            for my $field (@fields) {
+                $$field{label} ||= ucfirst $$field{name};
+                $$field{name} = "$$_[1]{name}_$$field{name}";                
+            }
+            $_ = [ 'group', { label => $$_[1]{label} || ucfirst(join(' ',split('_',$$_[1]{name}))), group => \@fields } ];
+        }
+    }
+    
+    $self->{form_spec}{fields} = [];
+    for my $line (@{ $self->{form_spec}{lines} }) {
+        if ($$line[0] eq 'group') {
+            push @{ $self->{form_spec}{fields} }, $_ foreach @{ $$line[1]{group} };
+        } elsif ($$line[0] eq 'field') {
+            push @{ $self->{form_spec}{fields} }, $$line[1];
+        }
+    }
+    
     
     # substitute in list names
     if (my %lists = %{ $self->{form_spec}{lists} || {} }) {
@@ -104,7 +130,14 @@ sub build {
             delete $$_{list};
         }
     }
+    
+    
+    
 
+    
+    # TODO: use lines instead of fields
+    # TODO: change template to do groups
+    
     # TODO: configurable threshold for this
     foreach (@{ $self->{form_spec}{fields} }) {
         $$_{ulist} = 1 if defined $$_{options} and @{ $$_{options} } >= 3;
@@ -115,7 +148,7 @@ sub build {
         javascript => 0,
         keepextras => 1,
         title => $self->{form_spec}{title},
-        fields => [ map { $$_{name} } @{ $self->{form_spec}{fields} } ],
+        #fields => [ map { $$_{name} } @{ $self->{form_spec}{fields} } ],
         template => {
             type => 'Text',
             engine => {
@@ -124,6 +157,7 @@ sub build {
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
+                lines       => $self->{form_spec}{lines},
                 headings    => $self->{form_spec}{headings},
                 author      => $self->{form_spec}{author},
                 description => $self->{form_spec}{description},
@@ -135,6 +169,10 @@ sub build {
     
     # mark structures as built
     $self->{built} = 1;
+    
+    # TEMP: dump @lines structure
+    use YAML;
+    warn YAML::Dump($self->{form_spec}->{lines}), "\n";
     
     return $self;
 }
@@ -181,7 +219,7 @@ sub write_module {
     my %options = %{ $self->{build_options} };
     my $source = $options{form_only} ? $self->_form_template : $self->_template;
     
-    delete $options{fomr_only};
+    delete $options{form_only};
     
     my $form_options = keys %options > 0 ? Data::Dumper->Dump([$self->{build_options}],['*options']) : '';
     
@@ -261,16 +299,42 @@ q[<% $description ? qq[<p id="description">$description</p>] : '' %>
 <% (grep { $_->{required} } @fields) ? qq[<p id="instructions">(Required fields are marked in <strong>bold</strong>.)</p>] : '' %>
 <% $start %>
 <table>
-<% my $i; foreach(@fields) {
-    $OUT .= qq[  <tr><th class="sectionhead" colspan="2"><h2>$headings[$i]</h2></th></tr>\n] if $headings[$i];
-    $OUT .= $$_{invalid} ? qq[  <tr class="invalid">] : qq[  <tr>];
-    $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
-    if ($$_{invalid}) {
-        $OUT .= qq[<td>$$_{field} $$_{comment} Missing or invalid value.</td></tr>\n];
-    } else {
-        $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
-    }
-    $i++;
+
+<% for my $line (@lines) {
+
+    if ($$line[0] eq 'head') {
+        $OUT .= qq[  <tr><th class="sectionhead" colspan="2"><h2>$$line[1]</h2></th></tr>\n]
+    } elsif ($$line[0] eq 'field') {
+        #TODO: we only need the field names, not the full field spec in the lines strucutre
+        local $_ = $field{$$line[1]{name}};
+        $OUT .= $$_{invalid} ? qq[  <tr class="invalid">] : qq[  <tr>];
+        $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
+        if ($$_{invalid}) {
+            $OUT .= qq[<td>$$_{field} $$_{comment} Missing or invalid value.</td></tr>\n];
+        } else {
+            $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
+        }
+    } elsif ($$line[0] eq 'group') {
+        my @field_names = map { $$_{name} } @{ $$line[1]{group} };
+        my @group_fields = map { $field{$_} } @field_names;
+        $OUT .= (grep { $$_{invalid} } @group_fields) ? qq[  <tr class="invalid">\n] : qq[  <tr>\n];
+        
+        
+        #TODO: validated but not required fields
+        # in a form spec: //EMAIL?
+        
+        #TODO: this doesn't seem to be working; all groups are getting marked as required        
+        $OUT .= '    <th class="label">';
+        $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}:</strong>] : "$$line[1]{label}:";
+        $OUT .= qq[</th>\n];
+        
+        $OUT .= qq[    <td>];
+        $OUT .= join(' ', map { qq[<small class="sublabel">$$_{label}</small> $$_{field} $$_{comment}] } @group_fields);
+        $OUT .= qq[    </td>\n];
+        $OUT .= qq[  </tr>\n];
+    }   
+    
+
 } %>
   <tr><th></th><td style="padding-top: 1em;"><% $submit %></td></tr>
 </table>
@@ -289,6 +353,7 @@ q[<html>
     th h2 { padding: .125em .5em; background: #eee; }
     th.label { font-weight: normal; text-align: right; vertical-align: top; }
     td ul { list-style: none; padding-left: 0; margin-left: 0; }
+    .sublabel { color: #999; }
   </style>
 </head>
 <body>
@@ -320,7 +385,7 @@ sub dump {
 
 =head1 NAME
 
-Text::FormBuilder - Parser for a minilanguage for generating web forms
+Text::FormBuilder - Create CGI::FormBuilder objects from simple text descriptions
 
 =head1 SYNOPSIS
 
@@ -535,10 +600,23 @@ Recognized input types are the same as those used by CGI::FormBuilder:
     checkbox
     static
 
-This example also shows how you can list multiple values for the input types
-that take multiple values (C<select>, C<radio>, and C<checkbox>). Values are
-in a comma-separated list inside curly braces. Whitespace between values is
-irrelevant, although there cannot be any whitespace within a value.
+To change the size of the input field, add a bracketed subscript after the
+field name (but before the descriptive label):
+
+    # for a single line field, sets size="40"
+    title[40]:text
+    
+    # for a multiline field, sets rows="4" and cols="30"
+    description[4,30]:textarea
+
+For the input types that can have options (C<select>, C<radio>, and
+C<checkbox>), here's how you do it:
+
+    color|Favorite color:select{red,blue,green}
+
+Values are in a comma-separated list inside curly braces. Whitespace
+between values is irrelevant, although there cannot be any whitespace
+within a value.
 
 To add more descriptive display text to a vlaue in a list, add a square-bracketed
 ``subscript,'' as in:
@@ -565,8 +643,8 @@ There is another form of the C<!list> directive: the dynamic list:
 
 The code inside the C<&{ ... }> is C<eval>ed by C<build>, and the results
 are stuffed into the list. The C<eval>ed code can either return a simple
-list, as the example does, or the fancier C<( { value1 => 'Description 1'},
-{ value2 => 'Description 2}, ...)> form.
+list, as the example does, or the fancier C<< ( { value1 => 'Description 1'},
+{ value2 => 'Description 2}, ... ) >> form.
 
 B<NOTE:> This feature of the language may go away unless I find a compelling
 reason for it in the next few versions. What I really wanted was lists that
@@ -582,7 +660,7 @@ To validate a field, include a validation type at the end of the field line:
 
     email|Email address//EMAIL
 
-Valid validation types include any of the builtin defaults from CGI::FormBuilder,
+Valid validation types include any of the builtin defaults from L<CGI::FormBuilder>,
 or the name of a pattern that you define with the C<!pattern> directive elsewhere
 in your form spec:
 

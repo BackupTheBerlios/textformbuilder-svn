@@ -1,6 +1,27 @@
-{ my ($title, $author, $description, %lists, %patterns, @fields, @headings, $type, @options, $list_var, $size, $rows, $cols); }
+{ 
+    my (
+	$context,      # line or group
+	@lines,        # master data structure
+	$title,
+	$author,
+	$description,
+	%lists,
+	%patterns,
+	@fields,
+	@group,        # current group
+	%groups,       # stored groups of fields
+	@headings,
+	$type,
+	@options,
+	$list_var,
+	$size,
+	$rows,
+	$cols,
+    );
+    $context = 'line';
+}
 
-form_spec: (list_def | description_def | line)(s) 
+form_spec: (list_def | description_def | group_def | line)(s) 
     {
 	$return = {
 	    title    => $title,
@@ -10,6 +31,8 @@ form_spec: (list_def | description_def | line)(s)
 	    patterns => \%patterns, 
 	    headings => \@headings,
 	    fields   => \@fields,
+	    lines    => \@lines,
+	    groups   => \%groups,
 	}
     }
 
@@ -35,7 +58,15 @@ description_def: '!description' <perl_codeblock>
     $description =~ s/^{\s*|\s*}$//g;
     }
 
-line: <skip:'[ \t]*'> ( title | author | pattern_def | heading | unknown_directive | field | comment | blank ) "\n"
+group_def: '!group' { $context = 'group' } var_name '{' field_line(s) '}' { $context = 'line' }
+    { 
+	#warn "$item{var_name} group; context $context\n"
+	$groups{$item{var_name}} = [ @group ];
+	@group = ();
+    }
+
+field_line: <skip:'[ \t]*'> ( field | comment | blank ) "\n"
+line: <skip:'[ \t]*'> ( title | author | pattern_def | heading | group_field | unknown_directive | field | comment | blank ) "\n"
 
 title: '!title' /.*/
     { warn "[Text::Formbuilder] Title redefined at input text line $thisline\n" if defined $title;
@@ -50,8 +81,18 @@ pattern_def: '!pattern' var_name pattern
 pattern: /.*/
 
 heading: '!head' /.*/
-    { warn "[Text::FormBuilder] Header before field " . scalar(@fields) . " redefined at input text line $thisline\n" if defined $headings[@fields];
-    $headings[@fields] = $item[2] }
+    {
+	warn "[Text::FormBuilder] Header before field " . scalar(@fields) . " redefined at input text line $thisline\n" if defined $headings[@fields];
+	$headings[@fields] = $item[2];
+	push @lines, [ 'head', $item[2] ];
+    }
+
+group_field: '!field' group_name name label(?)
+    { #warn "[$thisline] $item{group_name}\n"; 
+    push @lines, [ 'group', { name => $item{name}, label => $item{'label(?)'}[0], group => $item{group_name} } ];
+    }
+
+group_name: /%[A-Z_]+/
 
 field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) validate(?)
     {
@@ -71,7 +112,13 @@ field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) val
 	$$field{cols} = $cols if defined $cols;
 	$$field{size} = $size if defined $size;
 	
-	push @fields, $field;
+	#warn "[$thisline] field $item{name}; context $context\n";   
+	if ($context eq 'group') {
+	    push @group, $field;
+	} else {
+	    push @fields, $field;
+	    push @lines, [ 'field', $field ];
+	}
 	
 	$type = undef;
 	$list_var = undef;
@@ -94,7 +141,8 @@ size: /\d+/
 row_col: /\d+/ /,\s*/ /\d+/
     { $rows = $item[1]; $cols = $item[3] }
 
-label: '|' /[^:\[\{\/]+/i
+#TODO: zero width labels
+label: '|' /[^:\[\{\/\n]*/i { $item[2] }
 
 hint: '[' /[^\]]+/ ']'    { $item[2] }
 
