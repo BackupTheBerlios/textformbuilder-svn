@@ -76,7 +76,7 @@ sub build {
     delete $options{form_only};
     
     # substitute in custom pattern definitions for field validation
-    if (my %patterns = %{ $self->{form_spec}{patterns} || {} }) {
+    if (my %patterns = %{ $self->{form_spec}{patterns} }) {
         foreach (@{ $self->{form_spec}{fields} }) {
             if ($$_{validate} and exists $patterns{$$_{validate}}) {
                 $$_{validate} = $patterns{$$_{validate}};
@@ -84,10 +84,10 @@ sub build {
         }
     }
     
-    # so we don't get all fields required
-    foreach (@{ $self->{form_spec}{fields} }) {
-        delete $$_{validate} unless $$_{validate};
-    }
+##     # so we don't get all fields required
+##     foreach (@{ $self->{form_spec}{fields} }) {
+##         delete $$_{validate} unless $$_{validate};
+##     }
 
     # expand groups
     my %groups = %{ $self->{form_spec}{groups} };
@@ -116,23 +116,27 @@ sub build {
     
     
     # substitute in list names
-    if (my %lists = %{ $self->{form_spec}{lists} || {} }) {
-        foreach (@{ $self->{form_spec}{fields} }) {
-            next unless $$_{list};
-            
-            $$_{list} =~ s/^\@//;   # strip leading @ from list var name
-            
-            # a hack so we don't get screwy reference errors
-            if (exists $lists{$$_{list}}) {
-                my @list;
-                push @list, { %$_ } foreach @{ $lists{$$_{list}} };
-                $$_{options} = \@list;
-            }
-        } continue {
-            delete $$_{list};
+    my %lists = %{ $self->{form_spec}{lists} };
+    foreach (@{ $self->{form_spec}{fields} }) {
+        next unless $$_{list};
+        
+        $$_{list} =~ s/^\@//;   # strip leading @ from list var name
+        
+        # a hack so we don't get screwy reference errors
+        if (exists $lists{$$_{list}}) {
+            my @list;
+            push @list, { %$_ } foreach @{ $lists{$$_{list}} };
+            $$_{options} = \@list;
+        } else {
+##             #TODO: this is not working in CGI::FormBuilder
+##             # assume that the list name is a builtin 
+##             # and let it fall through to CGI::FormBuilder
+##             $$_{options} = $$_{list};
+##             warn "falling through to builtin $$_{options}";
         }
-    }
-    
+    } continue {
+        delete $$_{list};
+    }    
     
     # TODO: configurable threshold for this
     foreach (@{ $self->{form_spec}{fields} }) {
@@ -154,6 +158,7 @@ sub build {
         %DEFAULT_OPTIONS,
         required => [ map { $$_{name} } grep { $$_{required} } @{ $self->{form_spec}{fields} } ],
         title => $self->{form_spec}{title},
+        text  => $self->{form_spec}{description},
         template => {
             type => 'Text',
             engine => {
@@ -221,6 +226,7 @@ sub write_module {
     my %options = (
         %DEFAULT_OPTIONS,
         title => $self->{form_spec}{title},
+        text  => $self->{form_spec}{description},
         required => [ map { $$_{name} } grep { $$_{required} } @{ $self->{form_spec}{fields} } ],
         template => {
             type => 'Text',

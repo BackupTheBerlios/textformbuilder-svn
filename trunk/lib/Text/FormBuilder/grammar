@@ -28,12 +28,12 @@ form_spec: (list_def | description_def | group_def | line)(s)
 	    title    => $title,
 	    author   => $author,
 	    description => $description,
-	    lists    => \%lists, 
-	    patterns => \%patterns, 
-	    headings => \@headings,
-	    fields   => \@fields,
-	    lines    => \@lines,
-	    groups   => \%groups,
+	    lists    => \%lists    || {}, 
+	    patterns => \%patterns || {}, 
+	    headings => \@headings || [],
+	    fields   => \@fields   || [],
+	    lines    => \@lines    || [],
+	    groups   => \%groups   || {},
 	}
     }
 
@@ -168,7 +168,7 @@ options: '{' option(s /,\s*/) '}'
 
 list_var: /@[A-Z_]+/ { $list_var = $item[1] }
 
-option: (value | simple_multiword | quoted_string) display_text(?)
+option: (simple_multiword | value | quoted_string) display_text(?)
     { push @options, { $item[1] => $item{'display_text(?)'}[0] } }
 
 value: identifier
