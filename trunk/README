@@ -1,4 +1,4 @@
-Text-FormBuilder version 0.04
+Text-FormBuilder version 0.05
 =============================
 
 INSTALLATION
@@ -15,6 +15,12 @@ DEPENDENCIES
 This module requires these other modules and libraries:
 
   CGI::FormBuilder 2.13
+  Text::Template 1.44
+
+Optional:
+
+  Perl::Tidy
+  YAML
 
 COPYRIGHT AND LICENCE
 

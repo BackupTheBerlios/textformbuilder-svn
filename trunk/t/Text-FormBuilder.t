@@ -5,7 +5,7 @@
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use Test::More tests => 4;
+use Test::More tests => 6;
 BEGIN { use_ok('Text::FormBuilder'); };
 
 #########################
@@ -15,7 +15,12 @@ BEGIN { use_ok('Text::FormBuilder'); };
 
 my $p = Text::FormBuilder->new;
 isa_ok($p, 'Text::FormBuilder', 'new parser');
-isa_ok($p->parse_text('')->build->form, 'CGI::FormBuilder',  'generated CGI::FormBuilder object');
+isa_ok($p->parse_text('')->build->form, 'CGI::FormBuilder',  'generated CGI::FormBuilder object (build->form)');
+isa_ok($p->parse_text('')->form,        'CGI::FormBuilder',  'generated CGI::FormBuilder object (form)');
 
-my $p2 = Text::FormBuilder->parse_text('');
-isa_ok($p2, 'Text::FormBuilder', 'new parser (from parse_text as class method)');
+$p = Text::FormBuilder->parse_text('');
+isa_ok($p, 'Text::FormBuilder', 'new parser (from parse_text as class method)');
+
+$p = Text::FormBuilder->parse(\'');
+isa_ok($p, 'Text::FormBuilder', 'new parser (from parse as class method)');
+
