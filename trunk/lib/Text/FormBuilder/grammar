@@ -150,10 +150,11 @@ group_field: '!field' group_name name label(?)
 
 group_name: /%[A-Z_]+/
 
-field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) validate(?)
+field: name field_size(?) growable(?) label(?) hint(?) type(?) default(?) option_list(?) validate(?)
     {
 	my $field = {
 	    name     => $item{name},
+	    growable => ($item{'growable(?)'}[0] ? 1 : 0),
 	    label    => $item{'label(?)'}[0],
 	    comment  => $item{'hint(?)'}[0],
 	    type     => $item{'type(?)'}[0],
@@ -201,6 +202,8 @@ bang: '!'
 
 row_col: /\d+/ /,\s*/ /\d+/
     { $rows = $item[1]; $cols = $item[3] }
+
+growable: '*'
 
 label: '|' (simple_multiword | quoted_string) { $item[2] }
 

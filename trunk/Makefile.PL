@@ -6,7 +6,7 @@ WriteMakefile(
     VERSION_FROM      => 'lib/Text/FormBuilder.pm', # finds $VERSION
 ##     EXE_FILES         => [ 'bin/fb.pl' ],
     PREREQ_PM         => { 
-                            CGI::FormBuilder => 2.13,
+                            CGI::FormBuilder => 3.001,
                             Parse::RecDescent => 1.94,
                             Text::Template => 1.44,
                             # requirement for Class::ParseText::Base

@@ -16,7 +16,7 @@ use CGI::FormBuilder;
 # the static default options passed to CGI::FormBuilder->new
 my %DEFAULT_OPTIONS = (
     method => 'GET',
-    javascript => 0,
+##     javascript => 1,
     keepextras => 1,
 );
 
@@ -230,7 +230,6 @@ sub build {
         if (ref $$_{options} and @{ $$_{options} } >= 3) {
             $$_{columns} = int(@{ $$_{options} } / 8) + 1;
         }
-        #$$_{ulist} = 1 if ref $$_{options} and @{ $$_{options} } >= 3;
     }
     
     # remove extraneous undefined values
@@ -1052,7 +1051,16 @@ the size:
     title[40!]:text
 
 This currently only works for single line text fields.
-    
+
+To create a growable field, add a C<*> after the name (and size, if
+given). Growable fields have a button that allows the user to add a
+copy of the field input. Currently, this only works for C<text> and
+C<file> fields. Growable fields also require JavaScript to function
+correctly.
+
+    # you can have as many people as you like
+    person*:text
+
 For the input types that can have options (C<select>, C<radio>, and
 C<checkbox>), here's how you do it:
 
@@ -1210,6 +1218,9 @@ L<CGI::FormBuilder>, L<http://formbuilder.org>
 Thanks to eszpee for pointing out some bugs in the default value parsing,
 as well as some suggestions for i18n/l10n and splitting up long forms into
 sections.
+
+And of course, to Nathan Wiger, for giving use CGI::FormBuilder in the
+first place. Thanks Nate!
 
 =head1 AUTHOR
 
