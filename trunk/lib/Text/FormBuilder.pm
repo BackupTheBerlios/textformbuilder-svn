@@ -819,15 +819,15 @@ the next few versions, as I coordinate with the B<FormBuilder> project.>
 Takes a package name, and writes out a new module that can be used by your
 CGI script to render the form. This way, you only need CGI::FormBuilder on
 your server, and you don't have to parse the form spec each time you want 
-to display your form. The generated module has one function (not exported)
-called C<get_form>, that takes a CGI object as its only argument, and returns
-a CGI::FormBuilder object.
+to display your form. The generated module is a subclass of L<CGI::FormBuilder>,
+that will passa long any constructor arguments to FormBuilder, and set up
+the fields for you.
 
 First, you parse the formspec and write the module, which you can do as a one-liner:
 
     $ perl -MText::FormBuilder -e"Text::FormBuilder->parse('formspec.txt')->write_module('My::Form')"
 
-B<FIXME> And then, in your CGI script, use the new module:
+And then, in your CGI script, use the new module:
 
     #!/usr/bin/perl -w
     use strict;
@@ -836,7 +836,7 @@ B<FIXME> And then, in your CGI script, use the new module:
     use My::Form;
     
     my $q = CGI->new;
-    my $form = My::Form::get_form($q);
+    my $form = My::Form->new;
     
     # do the standard CGI::FormBuilder stuff
     if ($form->submitted && $form->validate) {
@@ -867,24 +867,19 @@ The generated script looks like this:
     use strict;
     use warnings;
     
-    use CGI;
     use CGI::FormBuilder;
     
-    my $q = CGI->new;
-    
     my $form = CGI::FormBuilder->new(
-        params => $q,
-        # ... lots of other stuff to set up the form ...
+        # lots of stuff here...
     );
     
-    $form->field( name => 'month' );
-    $form->field( name => 'day' );
-    
-    unless ( $form->submitted && $form->validate ) {
+    # ...and your field setup subs are here
+    $form->field(name => '...');
+        
+    unless ($form->submitted && $form->validate) {
         print $form->render;
     } else {
-        # do something with the entered data ...
-        # this is where your form processing code should go
+        # do something with the entered data
     }
 
 Like C<write_module>, you can optionally pass a true value as the second
@@ -934,6 +929,8 @@ Any of these can be overriden by the C<build> method:
 
 =head1 LANGUAGE
 
+    # name field_size growable label hint type other default option_list validate
+    
     field_name[size]|descriptive label[hint]:type=default{option1[display string],...}//validate
     
     !title ...
@@ -985,7 +982,7 @@ the C<!field> directive.
 
 =item C<!field>
 
-Include a named instance of a group defined with C<!group>.
+B<DEPRACATED> Include a named instance of a group defined with C<!group>.
 
 =item C<!title>
 
@@ -1018,7 +1015,7 @@ special instructions at specific points in a long form.
 
 =back
 
-=head2 Fields
+=head2 Strings
 
 First, a note about multiword strings in the fields. Anywhere where it says
 that you may use a multiword string, this means that you can do one of two
@@ -1041,13 +1038,15 @@ Quoted strings are also how you can set the label for a field to be blank:
 
     unlabeled_field|''
 
-Now, back to the beginning. Form fields are each described on a single line.
-The simplest field is just a name (which cannot contain any whitespace):
+=head2 Fields
+
+Form fields are each described on a single line. The simplest field is
+just a name (which cannot contain any whitespace):
 
     color
 
 This yields a form with one text input field of the default size named `color'.
-The generated label for this field would be ``Color''. To add a longer or more\
+The generated label for this field would be ``Color''. To add a longer or more
 descriptive label, use:
 
     color|Favorite color
@@ -1098,6 +1097,17 @@ Growable fields also require JavaScript to function correctly.
 
     # you can have as many people as you like
     person*:text
+
+To create a C<radio> or C<select> field that includes an "other" option,
+append the string C<+other> to the field type:
+
+    position:select+other
+
+Or, to let FormBuilder decide whether to use radio buttons or a dropdown:
+
+    position+other
+
+Like growable fields, 'other' fields require FormBuilder 3.02 or higher.
 
 For the input types that can have options (C<select>, C<radio>, and
 C<checkbox>), here's how you do it:
@@ -1211,6 +1221,8 @@ Make sure that the docs match the generated code.
 Better tests!
 
 =head2 Language/Parser
+
+Deprecate the C<!field> directive
 
 Allow renaming of the submit button; allow renaming and inclusion of a 
 reset button

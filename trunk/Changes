@@ -7,6 +7,7 @@ Release history for Text::FormBuilder.
     * addded an external_css option to include external stylesheets
     * using <fieldset> tags instead of <h2> to mark form sections
     * group fields can have comments
+    * deprecated the !field directive
     
 0.09 - 10 Mar 2005
     * single-line textfields can be given a maxlength

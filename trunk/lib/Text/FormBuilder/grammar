@@ -145,7 +145,8 @@ section_head: '!section' identifier /.*/
 heading: '!head' /.*/    { push @lines, [ 'head', $item[2] ] }
 
 group_field: '!field' group_name name label(?)
-    { 
+    {
+	warn "[Text::FormBuilder] The !field directive has been DEPRECATED (input file line $thisline). Please use the name:GROUP style";
 	push @lines, [ 'group', { name => $item{name}, label => $item{'label(?)'}[0], group => $item{group_name} } ];
     }
 
@@ -153,7 +154,7 @@ group_name: /%[A-Z_]+/
 
 field_group: name label(?) hint(?) group_type comment(?)
     {
-	warn "[$thisline] comment = $item{'hint(?)'}[0]\n" if $item{'hint(?)'}[0];
+	#warn "[$thisline] comment = $item{'hint(?)'}[0]\n" if $item{'hint(?)'}[0];
 	#warn "[$thisline] field $item{name} is $item{group_type}\n";
 	push @lines, [ 'group', {
 	    name    => $item{name},
