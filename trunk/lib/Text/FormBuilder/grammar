@@ -59,19 +59,13 @@ static_list: '{' option(s /,\s*/) /,?/ '}'
 
 dynamic_list: '&' <perl_codeblock>
     {
-	my @results = (eval $item[2]);
-	if (ref $results[0] eq 'HASH') {
-	    @options = @results;
-	} else {    
-	    @options = map { { $_ => $_ } } @results;
-	}
+	warn "[Text::FormBuilder] Dynamic lists have been removed from the formspec grammar";
     }
 
 description_def: '!description' block
-    { warn "[Text::FormBuilder] Description redefined at input text line $thisline\n" if defined $description;
-    
-    $description = $item[2];
-    $description =~ s/^{\s*|\s*}$//g;
+    {
+	warn "[Text::FormBuilder] Description redefined at input text line $thisline\n" if defined $description;
+	$description = $item{block};
     }
 
 validate_def: '!validate' var_name <perl_codeblock>
@@ -84,25 +78,31 @@ group_def: '!group' { $context = 'group' } var_name '{' field_line(s) '}' { $con
 	@group = ();
     }
 
-note: '!note' block
-    {   
-	(my $note = $item[2]) =~ s/^{\s*|\s*}$//g;
-	push @lines, [ 'note', $note ];
-    }
+note: '!note' block  { push @lines, [ 'note', $item{block} ]; }
+
+
+#TODO: allow \ escape for [] {} in these blocks
 
 # curly-brace delimited block, that can contain properly
-# nested curly brackets, along with any other characters
-# return with the '{...}' so that nested blocks get the
-# brackets treated as literals
-block: '{' <skip:''> block_content(s) '}'
-    {
-	'{' . join('', @{ $item[3] }) . '}';
-    }
+# nested curly braces, along with any other characters
+# inner blocks return with the '{...}' so that nested
+# blocks get the braces treated as literals
+block: '{' <skip:''> block_content(s) '}' { join('', @{ $item[3] }) }
+inner_block: '{' <skip:''> block_content(s) '}'  { '{' . join('', @{ $item[3] }) . '}' }
+block_content: /[^\{\}]+?/ | inner_block
 
-block_content: /[^\{\}]+?/ | block
+# square brace delimited block, that can contain properly
+# nested square brackets, along with any other characters
+# inner bracket blocks return with the '[...]' so that nested
+# blocks get the braces treated as literals
+bracket_block: '[' <skip:''> bracket_block_content(s) ']' { join('', @{ $item[3] }) }
+inner_bracket_block: '[' <skip:''> bracket_block_content(s) ']' { '[' . join('', @{ $item[3] }) . ']'; }
+bracket_block_content: /[^\[\]]+?/ | inner_bracket_block
 
 
+# field lines are the subset of lines that are allowed in a !group directive
 field_line: <skip:'[ \t]*'> ( field | comment | blank ) "\n"
+
 line: <skip:'[ \t]*'> ( title | author | pattern_def | section_head | heading | group_field | field_group | unknown_directive | field | comment | blank ) "\n"
 
 title: '!title' /.*/
@@ -158,6 +158,7 @@ field_group: name label(?) group_type
 
 group_type: ':' var_name
 
+# this is the real heart of the thing
 field: name field_size(?) growable(?) label(?) hint(?) type(?) default(?) option_list(?) validate(?)
     {
 	my $field = {
@@ -216,7 +217,7 @@ growable: '*'
 
 label: '|' (simple_multiword | quoted_string) { $item[2] }
 
-hint: '[' /[^\]]+/ ']'    { $item[2] }
+hint: bracket_block
 
 type: ':' builtin_field
 
@@ -244,25 +245,14 @@ option: (simple_multiword | value | quoted_string) display_text(?)
 
 value: identifier
 
-display_text: brace_block
-    { (my $text = $item[1]) =~ s/^\[\s*|\s*\]$//g; $text }
-
-# square brace delimited block, that can contain properly
-# nested square braces, along with any other characters
-# return with the '[...]' so that nested blocks get the
-# braces treated as literals
-brace_block: '[' <skip:''> brace_block_content(s) ']'
-    {
-	'[' . join('', @{ $item[3] }) . ']';
-    }
-brace_block_content: /[^\[\]]+?/ | brace_block
+display_text: bracket_block
 
 
-validate: '//' (optional_pattern | required_pattern)    { $item[2] }
+validate: '//' (optional_pattern | required_pattern)
 
-optional_pattern: /[A-Z_]+/ '?'	{ $required = 0; $item[1] }
+optional_pattern: var_name '?'	{ $required = 0; $item[1] }
 
-required_pattern: /[A-Z_]+/ { $required = 1; $item[1] }
+required_pattern: var_name { $required = 1; $item[1] }
 
 comment: '#' /.*/
 blank:

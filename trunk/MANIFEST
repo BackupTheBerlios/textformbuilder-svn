@@ -3,6 +3,7 @@ Makefile.PL
 MANIFEST
 README
 t/Text-FormBuilder.t
+bin/fb.pl
 lib/Text/FormBuilder.pm
 lib/Text/FormBuilder/Examples.pod
 lib/Text/FormBuilder/Parser.pm

@@ -4,9 +4,9 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'Text::FormBuilder',
     VERSION_FROM      => 'lib/Text/FormBuilder.pm', # finds $VERSION
-##     EXE_FILES         => [ 'bin/fb.pl' ],
+    EXE_FILES         => [ 'bin/fb.pl' ],
     PREREQ_PM         => { 
-                            CGI::FormBuilder => 3.001,
+                            CGI::FormBuilder => 3.0,
                             Parse::RecDescent => 1.94,
                             Text::Template => 1.44,
                             # requirement for Class::ParseText::Base

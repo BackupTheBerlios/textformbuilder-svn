@@ -4,6 +4,7 @@ Release history for Text::FormBuilder.
     * single-line textfields can be given a maxlength
     * BUGFIX: !note and !description blocks can now
       contain "unbalanced" quotes (fixed the gramamr)
+    * removed dynamic lists from the grammar
     
 0.08 - 10 Jan 2005
     * failure to load Perl::Tidy is no longer fatal
