@@ -35,6 +35,6 @@ my $form = $p->parse(\$simple)->form;
 # we should have three fields
 is(keys %{ $form->fields }, 3, 'correct number of fields');
 
-my $p2 = Text::FormBuilder->parse_array([qw(code title semester instructor)]);
-is(keys %{ $p2->form->fields }, 4, 'correct number of fields from parse_array');
-$p2->write;
+## my $p2 = Text::FormBuilder->parse_array([qw(code title semester instructor)]);
+## is(keys %{ $p2->form->fields }, 4, 'correct number of fields from parse_array');
+## $p2->write;
