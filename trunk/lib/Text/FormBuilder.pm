@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter Class::ParseText::Base);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.09_01';
+$VERSION = '0.09_02';
 @EXPORT = qw(create_form);
 
 use Carp;
@@ -23,6 +23,7 @@ my %DEFAULT_OPTIONS = (
 # the built in CSS for the template
 my $DEFAULT_CSS = <<END;
 table { padding: 1em; }
+td table { padding: 0; } /* exclude the inner checkbox tables */
 #author, #footer { font-style: italic; }
 caption h2 { padding: .125em .5em; background: #ccc; text-align: left; }
 th { text-align: left; }
@@ -226,7 +227,10 @@ sub build {
     
     # use the list for displaying checkbox groups
     foreach (@{ $self->{form_spec}{fields} }) {
-        $$_{ulist} = 1 if ref $$_{options} and @{ $$_{options} } >= 3;
+        if (ref $$_{options} and @{ $$_{options} } >= 3) {
+            $$_{columns} = int(@{ $$_{options} } / 8) + 1;
+        }
+        #$$_{ulist} = 1 if ref $$_{options} and @{ $$_{options} } >= 3;
     }
     
     # remove extraneous undefined values
@@ -531,7 +535,7 @@ q[
                 
                 $OUT .= qq[    <td><span class="fieldgroup">];
                 $OUT .= join(' ', map { qq[<small class="sublabel">$$_{label}</small> $$_{field} $$_{comment}] } @group_fields);
-                $OUT .= " $msg_invalid" if $$_{invalid};
+                $OUT .= " ] . $msg_invalid . q[" if $$_{invalid};
                 
                 $OUT .= qq[    </span></td>\n];
                 $OUT .= qq[  </tr>\n];
