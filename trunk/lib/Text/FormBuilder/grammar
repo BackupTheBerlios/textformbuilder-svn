@@ -151,10 +151,16 @@ group_field: '!field' group_name name label(?)
 
 group_name: /%[A-Z_]+/
 
-field_group: name label(?) group_type
-    { 
+field_group: name label(?) hint(?) group_type comment(?)
+    {
+	warn "[$thisline] comment = $item{'hint(?)'}[0]\n" if $item{'hint(?)'}[0];
 	#warn "[$thisline] field $item{name} is $item{group_type}\n";
-	push @lines, [ 'group', { name => $item{name}, label => $item{'label(?)'}[0], group => $item{group_type} } ];
+	push @lines, [ 'group', {
+	    name    => $item{name},
+	    label   => $item{'label(?)'}[0],
+	    comment => $item{'hint(?)'}[0],
+	    group   => $item{group_type},
+	} ];
     }
 
 group_type: ':' var_name

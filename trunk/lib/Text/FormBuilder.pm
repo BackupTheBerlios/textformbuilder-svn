@@ -176,7 +176,14 @@ sub build {
                         $$field{label} ||= ucfirst $$field{name};
                         $$field{name} = "$$_[1]{name}_$$field{name}";                
                     }
-                    $_ = [ 'group', { label => $$_[1]{label} || ucfirst(join(' ',split('_',$$_[1]{name}))), group => \@fields } ];
+                    $_ = [
+                        'group',
+                        {
+                            label => $$_[1]{label} || ucfirst(join(' ',split('_',$$_[1]{name}))),
+                            comment => $$_[1]{comment},
+                            group => \@fields,
+                        },
+                    ];
                 }
             }
         }
@@ -525,9 +532,9 @@ q[
                 
                 # mark invalid fields
                 if ($$_{invalid}) {
-                    $OUT .= "<td>$$_{field} $$_{comment} ] . $msg_invalid . q[</td>";
+                    $OUT .= qq[<td>$$_{field} <span class="comment">$$_{comment}</span> ] . $msg_invalid . q[</td>];
                 } else {
-                    $OUT .= qq[<td>$$_{field} $$_{comment}</td>];
+                    $OUT .= qq[<td>$$_{field} <span class="comment">$$_{comment}</span></td>];
                 }
                 
                 $OUT .= qq[</tr>\n];
@@ -545,7 +552,7 @@ q[
                 #TODO: allow comments on field groups
                 $OUT .= " ] . $msg_invalid . q[" if grep { $$_{invalid} } @group_fields;
                 
-                $OUT .= qq[    </span></td>\n];
+                $OUT .= qq[ <span class="comment">$$line[1]{comment}</span></span></td>\n];
                 $OUT .= qq[  </tr>\n];
             }   
         }
@@ -1179,17 +1186,19 @@ Thus in this example, you would end up with the form fields C<birthday_month>,
 C<birthday_day>, and C<birthday_year>.
 
 You can also use groups in normal field lines:
-    
+
     birthday|Your birthday:DATE
 
 The only (currently) supported pieces of a fieldspec that may be used with a
-group in this notation are name and label.
+group in this notation are name, label, and hint.
 
 =head2 Comments
 
     # comment ...
 
-Any line beginning with a C<#> is considered a comment.
+Any line beginning with a C<#> is considered a comment. Comments can also appear
+after any field line. They I<cannot> appear between items in a C<!list>, or on
+the same line as any of the directives.
 
 =head1 TODO
 
@@ -1206,7 +1215,9 @@ Better tests!
 Allow renaming of the submit button; allow renaming and inclusion of a 
 reset button
 
-Allow comments on group fields (rendered after the all the fields)
+Set FB constructor options directly in the formspec (via a C<!fb> or similar
+directive). The major issue here would be what format to use to allow for
+array/hash refs.
 
 Pieces that wouldn't make sense in a group field: size, row/col, options,
 validate. These should cause C<build> to emit a warning before ignoring them.
