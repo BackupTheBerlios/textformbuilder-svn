@@ -250,14 +250,7 @@ sub build {
                 }
             }
         }
-    }    
-    
-    # remove false $$_{required} params because this messes up things at
-    # the CGI::FormBuilder::field level; it seems to be marking required
-    # based on the existance of a 'required' param, not whether it is
-    # true or defined
-    # TODO: check if this is still needed
-    $$_{required} or delete $$_{required} foreach @{ $self->{form_spec}{fields} };
+    }
     
     # assign the field names to the sections
     foreach (@{ $self->{form_spec}{sections} }) {

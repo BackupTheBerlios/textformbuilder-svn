@@ -172,7 +172,7 @@ field: name field_size(?) growable(?) label(?) hint(?) type(?) other(?) default(
 	    value    => $item{'default(?)'}[0],
 	    list     => $list_var,
 	    validate => $item{'validate(?)'}[0],
-	    required => $required || 0,
+	    required => $required,
 	};
 	
 	$$field{options} = [ @options ] if @options;
@@ -190,7 +190,7 @@ field: name field_size(?) growable(?) label(?) hint(?) type(?) other(?) default(
 	}
 	
 	$type = undef;
-	$required = 0;
+	$required = undef;
 	$list_var = undef;
 	$size = undef;
 	$rows = undef;
@@ -232,7 +232,7 @@ other: '+' 'other' { 1 }
 default: '=' (simple_multiword | quoted_string) { $item[2] }
 
 # for simple multiword values not involving punctuation
-simple_multiword: <skip:''> /\w[\w\t ]+/ { $item[2] }
+simple_multiword: <skip:''> /\w[\w\t ]*/ { $item[2] }
 
 # my attempt at a single-quoted, non-interpolating string
 # where the backslash can escape literal single quotes
