@@ -1,4 +1,4 @@
-{ my ($title, $author, %lists, %patterns, @fields, $type, @options, $list_var, $size, $rows, $cols); }
+{ my ($title, $author, %lists, %patterns, @fields, @headings, $type, @options, $list_var, $size, $rows, $cols); }
 
 form_spec: (list_def | line)(s) 
     {
@@ -7,6 +7,7 @@ form_spec: (list_def | line)(s)
 	    author   => $author,
 	    lists    => \%lists, 
 	    patterns => \%patterns, 
+	    headings => \@headings,
 	    fields   => \@fields,
 	}
     }
@@ -28,7 +29,7 @@ dynamic_list: '&' <perl_codeblock>
 
 list_name: /[A-Z_]+/
 
-line: <skip:'[ \t]*'> ( title | author | pattern_def | field | comment | blank ) "\n"
+line: <skip:'[ \t]*'> ( title | author | pattern_def | heading | field | comment | blank ) "\n"
 
 title: '!title' /.*/
     { warn "[Text::Formbuilder] Title redefined at input text line $thisline\n" if defined $title;
@@ -42,6 +43,10 @@ pattern_def: '!pattern' pattern_name pattern
 
 pattern_name: /[A-Z_]+/
 pattern: /.*/
+
+heading: '!head' /.*/
+    { warn "[Text::FormBuilder] Header before field " . scalar(@fields) . " redefined at input text line $thisline\n" if defined $headings[@fields];
+    $headings[@fields] = $item[2] }
 
 field: name field_size(?) label(?) hint(?) type(?) default(?) option_list(?) validate(?)
     {

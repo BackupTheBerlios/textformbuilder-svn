@@ -91,10 +91,11 @@ sub build {
             engine => {
                 TYPE       => 'STRING',
                 SOURCE     => $self->_template,
-                DELIMETERS => [ qw(<% %>) ],
+                DELIMITERS => [ qw(<% %>) ],
             },
             data => {
-                author => $self->{form_spec}{author},
+                headings => $self->{form_spec}{headings},
+                author   => $self->{form_spec}{author},
             },
         },
         %options,
@@ -124,7 +125,9 @@ q[
   <title><% $title %><% $author ? ' - ' . ucfirst $author : '' %></title>
   <style type="text/css">
     #author, #footer { font-style: italic; }
-    th { font-weight: normal; text-align: right; vertical-align: top; }
+    th { text-align: left; }
+    th h2 { padding: .125em .5em; background: #eee; }
+    th.label { font-weight: normal; text-align: right; vertical-align: top; }
   </style>
 </head>
 <body>
@@ -134,10 +137,12 @@ q[
 <p id="instructions">(Required fields are marked in <strong>bold</strong>.)</p>
 <% $start %>
 <table>
-<% foreach (@fields) {
+<% my $i; foreach(@fields) {
+    $OUT .= qq[  <tr><th colspan="2"><h2>$headings[$i]</h2></th></tr>\n] if $headings[$i];
     $OUT .= qq[  <tr>];
-    $OUT .= '<th>' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
-    $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n]
+    $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
+    $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
+    $i++;
 } %>
   <tr><th></th><td style="padding-top: 1em;"><% $submit %></td></tr>
 </table>
