@@ -5,7 +5,7 @@ use warnings;
 
 use vars qw($VERSION);
 
-$VERSION = '0.06';
+$VERSION = '0.06_01';
 
 use Carp;
 use Text::FormBuilder::Parser;
@@ -658,13 +658,13 @@ C<checkbox>), here's how you do it:
 Values are in a comma-separated list of single words or multiword strings
 inside curly braces. Whitespace between values is irrelevant.
 
-To add more descriptive display text to a vlaue in a list, add a square-bracketed
+To add more descriptive display text to a value in a list, add a square-bracketed
 ``subscript,'' as in:
 
     ...:select{red[Scarlet],blue[Azure],green[Olive Drab]}
 
 If you have a list of options that is too long to fit comfortably on one line,
-consider using the C<!list> directive:
+you should use the C<!list> directive:
 
     !list MONTHS {
         1[January],
@@ -688,6 +688,17 @@ I<B<NOTE:> This feature of the language may go away unless I find a compelling
 reason for it in the next few versions. What I really wanted was lists that
 were filled in at run-time (e.g. from a database), and that can be done easily
 enough with the CGI::FormBuilder object directly.>
+
+If you want to have a single checkbox (e.g. for a field that says ``I want to
+recieve more information''), you can just specify the type as checkbox without
+supplying any options:
+
+    moreinfo|I want to recieve more information:checkbox
+
+The one drawback to this is that the label to the checkbox will still appear
+to the left of the field. I am leaving it this way for now, but if enough
+people would like this to change, I may make single-option checkboxes a special
+case and put the label on the right.
 
 You can also supply a default value to the field. To get a default value of
 C<green> for the color field:
@@ -745,13 +756,18 @@ Better tests!
 
 =head1 BUGS
 
+For now, checkboxes with a single value still display their labels on
+the left.
+
 =head1 SEE ALSO
 
 L<CGI::FormBuilder>
 
 =head1 THANKS
 
-Thanks to eszpee for pointing out some bugs in the default value parsing.
+Thanks to eszpee for pointing out some bugs in the default value parsing,
+as well as some suggestions for i18n/l10n and splitting up long forms into
+sections (that as of this release are still on the TODO list ;-).
 
 =head1 AUTHOR
 
