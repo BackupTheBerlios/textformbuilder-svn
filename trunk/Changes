@@ -8,6 +8,7 @@ Release history for Text::FormBuilder.
     * inline field groups via the !group and !field directives
     * added write_script method to write a skeleton CGI
       script around the FormBuilder object
+    * added external documentation of usage examples
     
 0.06 - 19 Nov 2004
     * marked Parse::RecDescent as an explicit dependency

@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.07_02';
+$VERSION = '0.07_03';
 @EXPORT = qw(create_form);
 
 use Carp;
@@ -47,6 +47,7 @@ my $DEFAULT_CHARSET = 'iso-8859-1';
 my $TIDY_OPTIONS = '-nolq -ci=4 -ce';
 
 my $HTML_EXTS   = qr/\.html?$/;
+my $MODULE_EXTS = qr/\.pm$/;
 my $SCRIPT_EXTS = qr/\.(pl|cgi)$/;
 
 # superautomagical exported function
@@ -60,12 +61,12 @@ sub create_form {
             #TODO: what do ref dests mean?
         } else {
             # write webpage, script, or module
-            if ($destination =~ $HTML_EXTS) {
-                $parser->write($destination);
+            if ($destination =~ $MODULE_EXTS) {
+                $parser->write_module($destination);
             } elsif ($destination =~ $SCRIPT_EXTS) {
                 $parser->write_script($destination);
             } else {
-                $parser->write_module($destination);
+                $parser->write($destination);
             }
         }
     } else {
@@ -685,6 +686,8 @@ an optional C<moreinfo> checkbox labeled ``Send me more information'', and
 finally a set of checkboxes named C<interests> with the choices Perl,
 karate, and bass guitar.
 
+=head1 METHODS
+
 =head2 new
 
     my $parser = Text::FormBuilder->new;
@@ -885,6 +888,31 @@ argument to have Perl::Tidy make the generated code look nicer.
 
 Uses L<YAML> to print out a human-readable representation of the parsed
 form spec.
+
+=head1 EXPORTS
+
+There is one exported function, C<create_form>, that is intended to ``do the
+right thing'' in simple cases.
+
+=head2 create_form
+
+    # get a CGI::FormBuilder object
+    my $form = create_form($source, $options, $destination);
+    
+    # or just write the form immediately
+    create_form($source, $options, $destination);
+
+C<$source> accepts any of the types of arguments that C<parse> does. C<$options>
+is a hashref of options that should be passed to C<build>. Finally, C<$destination>
+is a simple scalar that determines where and what type of output C<create_form>
+should generate.
+
+    /\.pm$/             ->write_module($destination)
+    /\.(cgi|pl)$/       ->write_script($destination)
+    everything else     ->write($destination)
+
+For anything more than simple, one-off cases, you are usually better off using the
+object-oriented interface, since that gives you more control over things.
 
 =head1 DEFAULTS
 
@@ -1150,8 +1178,6 @@ Allow for custom wrappers around the C<form_template>
 Maybe use HTML::Template instead of Text::Template for the built in template
 (since CGI::FormBuilder users may be more likely to already have HTML::Template)
 
-Better examples in the docs (maybe a standalone or two as well)
-
 C<!include> directive to include external formspec files
 
 Better tests!
@@ -1160,8 +1186,6 @@ Better tests!
 
 Creating two $parsers in the same script causes the second one to get the data
 from the first one.
-
-Get the fallback to CGI::FormBuilder builtin lists to work.
 
 I'm sure there are more in there, I just haven't tripped over any new ones lately. :-)
 

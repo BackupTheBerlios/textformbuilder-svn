@@ -1,5 +1,5 @@
-Text-FormBuilder version 0.05
-=============================
+Text-FormBuilder version 0.07_03
+================================
 
 INSTALLATION
 
@@ -16,6 +16,7 @@ This module requires these other modules and libraries:
 
   CGI::FormBuilder 2.13
   Text::Template 1.44
+  Parse::RecDescent
 
 Optional:
 
