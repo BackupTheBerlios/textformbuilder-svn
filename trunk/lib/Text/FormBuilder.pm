@@ -3,7 +3,7 @@ package Text::FormBuilder;
 use strict;
 use warnings;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use Text::FormBuilder::Parser;
 use CGI::FormBuilder;
@@ -42,6 +42,13 @@ sub parse_text {
 sub build {
     my ($self, %options) = @_;
     
+    $self->{build_options} = { %options };
+    
+    # our custom %options:
+    # form_only: use only the form part of the template
+    my $form_only = $options{form_only};
+    delete $options{form_only};
+    
     # substitute in custom pattern definitions for field validation
     if (my %patterns = %{ $self->{form_spec}{patterns} }) {
         foreach (@{ $self->{form_spec}{fields} }) {
@@ -49,6 +56,11 @@ sub build {
                 $$_{validate} = $patterns{$$_{validate}};
             }
         }
+    }
+    
+    # remove extraneous undefined values
+    for my $field (@{ $self->{form_spec}{fields} }) {
+        defined $$field{$_} or delete $$field{$_} foreach keys %{ $field };
     }
     
     # so we don't get all fields required
@@ -90,7 +102,7 @@ sub build {
             type => 'Text',
             engine => {
                 TYPE       => 'STRING',
-                SOURCE     => $self->_template,
+                SOURCE     => $form_only ? $self->_form_template : $self->_template,
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
@@ -116,11 +128,99 @@ sub write {
     }
 }
 
+sub write_module {
+    my ($self, $package) = @_;
+
+    use Data::Dumper;
+    # don't dump $VARn names
+    $Data::Dumper::Terse = 1;
+    
+    my $title = $self->{form_spec}{title} || '';
+    my $author = $self->{form_spec}{author} || '';
+    my $headings = Data::Dumper->Dump([$self->{form_spec}{headings}],['headings']);
+    my $fields = Data::Dumper->Dump([ [ map { $$_{name} } @{ $self->{form_spec}{fields} } ] ],['fields']);
+    
+    my $source = $self->{build_options}{form_only} ? $self->_form_template : $self->_template;
+    
+    my $options = keys %{ $self->{build_options} } > 0 ? Data::Dumper->Dump([$self->{build_options}],['*options']) : '';
+    
+    my $field_setup = join(
+        "\n", 
+        map { '$cgi_form->field' . Data::Dumper->Dump([$_],['*field']) . ';' } @{ $self->{form_spec}{fields} }
+    );
+    
+    my $module = <<END;
+package $package;
+use strict;
+use warnings;
+
+use CGI::FormBuilder;
+
+sub form {
+    my \$cgi = shift;
+    my \$cgi_form = CGI::FormBuilder->new(
+        method => 'GET',
+        params => \$cgi,
+        javascript => 0,
+        keepextras => 1,
+        title => q[$title],
+        fields => $fields,
+        template => {
+            type => 'Text',
+            engine => {
+                TYPE       => 'STRING',
+                SOURCE     => q[$source],
+                DELIMITERS => [ qw(<% %>) ],
+            },
+            data => {
+                headings => $headings,
+                author   => q[$author],
+            },
+        },
+        $options
+    );
+    
+    $field_setup
+    
+    return \$cgi_form;
+}
+
+# module return
+1;
+END
+    my $outfile = (split(/::/, $package))[-1] . '.pm';
+    
+    if ($outfile) {
+        open FORM, "> $outfile";
+        print FORM $module;
+        close FORM;
+    } else {
+        print $module;
+    }
+}
+
 sub form { shift->{form} }
 
+sub _form_template {
+q[<p id="instructions">(Required fields are marked in <strong>bold</strong>.)</p>
+<% $start %>
+<table>
+<% my $i; foreach(@fields) {
+    $OUT .= qq[  <tr><th class="sectionhead" colspan="2"><h2>$headings[$i]</h2></th></tr>\n] if $headings[$i];
+    $OUT .= qq[  <tr>];
+    $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
+    $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
+    $i++;
+} %>
+  <tr><th></th><td style="padding-top: 1em;"><% $submit %></td></tr>
+</table>
+<% $end %>
+];
+}
+
 sub _template {
-q[
-<html>
+    my $self = shift;
+q[<html>
 <head>
   <title><% $title %><% $author ? ' - ' . ucfirst $author : '' %></title>
   <style type="text/css">
@@ -134,19 +234,7 @@ q[
 
 <h1><% $title %></h1>
 <% $author ? qq[<p id="author">Created by $author</p>] : '' %>
-<p id="instructions">(Required fields are marked in <strong>bold</strong>.)</p>
-<% $start %>
-<table>
-<% my $i; foreach(@fields) {
-    $OUT .= qq[  <tr><th colspan="2"><h2>$headings[$i]</h2></th></tr>\n] if $headings[$i];
-    $OUT .= qq[  <tr>];
-    $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
-    $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
-    $i++;
-} %>
-  <tr><th></th><td style="padding-top: 1em;"><% $submit %></td></tr>
-</table>
-<% $end %>
+] . $self->_form_template . q[
 <hr />
 <div id="footer">
   <p id="creator">Made with <a href="http://formbuilder.org/">CGI::FormBuilder</a> version <% $CGI::FormBuilder::VERSION %>.</p>
@@ -197,9 +285,22 @@ Text::FormBuilder - Parser for a minilanguage describing web forms
 
 =head2 build
 
-Options passed to build are passed on verbatim to the L<CGI::FormBuilder>
-constructor. Any options given here override the defaults that this module
-uses.
+    $parser->build(%options);
+
+Builds the CGI::FormBuilder object. Options directly used by C<build> are:
+
+=over
+
+=item form_only
+
+Only uses the form portion of the template, and omits the surrounding html,
+title, author, and the standard footer.
+
+=back
+
+All other options given to C<build> are passed on verbatim to the
+L<CGI::FormBuilder> constructor. Any options given here override the
+defaults that this module uses.
 
 =head2 form
 
@@ -216,6 +317,35 @@ Returns the L<CGI::FormBuilder> object.
 Calls C<render> on the FormBuilder form, and either writes the resulting HTML
 to a file, or to STDOUT if no filename is given.
 
+=head2 write_module
+
+    $parser->write_module($package);
+
+Takes a package name, and writes out a new module that can be used by your
+CGI script to render the form. This way, you only need CGI::FormBuilder on
+your server, and you don't have to parse the form spec each time you want 
+to display your form.
+
+    #!/usr/bin/perl -w
+    use strict;
+    
+    # your CGI script
+    
+    use CGI;
+    use MyForm;
+    
+    my $q = CGI->new;
+    my $form = MyForm::form($q);
+    
+    # do the standard CGI::FormBuilder stuff
+    if ($form->submitted && $form->validate) {
+        # process results
+    } else {
+        print $q->header;
+        print $form->render;
+    }
+    
+
 =head2 dump
 
 Uses L<YAML> to print out a human-readable representaiton of the parsed
@@ -223,9 +353,11 @@ form spec.
 
 =head1 LANGUAGE
 
-    name[size]|descriptive label[hint]:type=default{option1[display string],option2[display string],...}//validate
+    field_name[size]|descriptive label[hint]:type=default{option1[display string],option2[display string],...}//validate
     
     !title ...
+    
+    !author ...
     
     !pattern name /regular expression/
     !list name {
@@ -233,6 +365,10 @@ form spec.
         option2[display string],
         ...
     }
+    
+    !list name &{ CODE }
+    
+    !head ...
 
 =head2 Directives
 
@@ -240,11 +376,21 @@ form spec.
 
 =item C<!pattern>
 
+Defines a validation pattern.
+
 =item C<!list>
+
+Defines a list for use in a C<radio>, C<checkbox>, or C<select> field.
 
 =item C<!title>
 
 =item C<!author>
+
+=item C<!head>
+
+Inserts a heading between two fields. There can only be one heading between
+any two fields; the parser will warn you if you try to put two headings right
+next to each other.
 
 =back
 
@@ -266,8 +412,6 @@ Any line beginning with a C<#> is considered a comment.
 =head2 Langauge
 
 Directive for a descriptive or explanatory paragraph about the form
-
-Subsection headers?
 
 =head1 SEE ALSO
 
