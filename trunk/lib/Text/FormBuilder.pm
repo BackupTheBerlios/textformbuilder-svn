@@ -56,7 +56,7 @@ sub parse_file {
     $self = $self->new unless ref $self;
     
     local $/ = undef;
-    open SRC, "< $filename";
+    open SRC, "< $filename" or croak "[Text::FormBuilder::parse_file] Can't open $filename: $!" and return;
     my $src = <SRC>;
     close SRC;
     
@@ -68,6 +68,9 @@ sub parse_text {
     
     # so it can be called as a class method
     $self = $self->new unless ref $self;
+    
+    # append a newline so that it can be called on a single field easily
+    $src .= "\n";
     
     $self->{form_spec} = $self->{parser}->form_spec($src);
     
@@ -104,9 +107,7 @@ sub build {
     
     # expand groups
     my %groups = %{ $self->{form_spec}{groups} || {} };
-    
     for my $section (@{ $self->{form_spec}{sections} || [] }) {
-##         foreach (grep { $$_[0] eq 'group' } @{ $self->{form_spec}{lines} || [] }) {
         foreach (grep { $$_[0] eq 'group' } @{ $$section{lines} }) {
             $$_[1]{group} =~ s/^\%//;       # strip leading % from group var name
             
@@ -148,11 +149,9 @@ sub build {
             push @list, { %$_ } foreach @{ $lists{$$_{list}} };
             $$_{options} = \@list;
         } else {
-##             #TODO: this is not working in CGI::FormBuilder
-##             # assume that the list name is a builtin 
-##             # and let it fall through to CGI::FormBuilder
-##             $$_{options} = $$_{list};
-##             warn "falling through to builtin $$_{options}";
+            # assume that the list name is a builtin 
+            # and let it fall through to CGI::FormBuilder
+            $$_{options} = $$_{list};
         }
     } continue {
         delete $$_{list};
@@ -167,7 +166,7 @@ sub build {
     
     # TODO: configurable threshold for this
     foreach (@{ $self->{form_spec}{fields} }) {
-        $$_{ulist} = 1 if defined $$_{options} and @{ $$_{options} } >= 3;
+        $$_{ulist} = 1 if ref $$_{options} and @{ $$_{options} } >= 3;
     }
     
     # remove extraneous undefined values
@@ -229,7 +228,7 @@ sub write {
 sub write_module {
     my ($self, $package, $use_tidy) = @_;
 
-    croak 'Expecting a package name' unless $package;
+    croak '[Text::FormBuilder::write_module] Expecting a package name' unless $package;
     
     # automatically call build if needed to
     # allow the new->parse->write shortcut

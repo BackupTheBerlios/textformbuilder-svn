@@ -11,6 +11,8 @@ Release history for Text::FormBuilder.
     * allow for validated but not required fields
     * added a !section directive that splits up a form into
       sub-tables with their own ids and captions
+    * fall through to CGI::FormBuilder builtin option lists
+      if @LIST does not match a list directive
     
 0.05 -  9 Nov 2004
     * First CPAN release
