@@ -1,14 +1,15 @@
+# line directives
+# block directives
+# field lines
+# comments
+
 {
     #$::RD_TRACE = 1;
     my (
-	$context,      # line or group
 	@sections,     # master data structure
 	$section_head,
 	$section_id,
 	@lines,        # lines in each section
-	$title,
-	$author,
-	$description,
 	%lists,
 	%patterns,
 	%subs,         # validation subs
@@ -23,10 +24,20 @@
 	$rows,
 	$cols,
     );
-    $context = 'line';
+    my $context = 'line';	# start in line context by default
+    my %formspec;
+    
+    # TODO: helper sub?
+    sub alert ($) {
+	warn '[' . (split(/::/, (caller(1))[3]))[-1] . '] ' . shift() . "\n";
+    }
 }
 
-form_spec: (list_def | description_def | validate_def | group_def | note | line)(s)
+form_spec:
+    { 
+	%formspec = ();  # clear the old formspec data
+    }
+    (list_def | description_def | group_def | note | line)(s)
     {
 	# grab the last section, if there is any
 	if (@lines) {
@@ -38,13 +49,10 @@ form_spec: (list_def | description_def | validate_def | group_def | note | line)
 		};
 	}
 	
-	$section_id = $item{identifier};
-	$section_head = $item[3];
-	@lines = ();
 	$return = {
-	    title    => $title,
-	    author   => $author,
-	    description => $description,
+	    title    => $formspec{title},
+	    author   => $formspec{author},
+	    description => $formspec{description},
 	    lists    => \%lists,
 	    patterns => \%patterns,
 	    subs     => \%subs,
@@ -59,18 +67,13 @@ list_def: '!list' var_name (static_list | dynamic_list)
 static_list: '{' /\s*/ option(s /\s*,\s*/) /,?/ /\s*/ '}'
 
 dynamic_list: '&' <perl_codeblock>
-    {
-	warn "[Text::FormBuilder] Dynamic lists have been removed from the formspec grammar";
-    }
+    { warn "[Text::FormBuilder] Dynamic lists have been removed from the formspec grammar"; }
 
 description_def: '!description' block
     {
-	warn "[Text::FormBuilder] Description redefined at input text line $thisline\n" if defined $description;
-	$description = $item{block};
+	warn "[Text::FormBuilder] Description redefined at input text line $thisline\n" if defined $formspec{description};
+	$formspec{description} = $item{block};
     }
-
-validate_def: '!validate' var_name <perl_codeblock>
-    { $subs{$item{var_name}} = eval "sub $item[3]" }
 
 group_def: '!group' { $context = 'group' } var_name '{' field_line(s) '}' { $context = 'line' }
     { 
@@ -81,8 +84,6 @@ group_def: '!group' { $context = 'group' } var_name '{' field_line(s) '}' { $con
 
 note: '!note' block  { push @lines, [ 'note', $item{block} ]; }
 
-
-#TODO: allow \ escape for [] {} in these blocks
 
 # curly-brace delimited block, that can contain properly
 # nested curly braces, along with any other characters
@@ -108,14 +109,14 @@ line: <skip:'[ \t]*'> ( title | author | pattern_def | section_head | heading | 
 
 title: '!title' /.*/
     {
-	warn "[Text::FormBuilder] Title redefined at input text line $thisline\n" if defined $title;
-	$title = $item[2];
+	warn "[Text::FormBuilder] Title redefined at input text line $thisline\n" if defined $formspec{title};
+	$formspec{title} = $item[2];
     }
 
 author: '!author' /.*/
     {
-	warn "[Text::FormBuilder] Author redefined at input text line $thisline\n" if defined $author;
-	$author = $item[2];
+	warn "[Text::FormBuilder] Author redefined at input text line $thisline\n" if defined $formspec{author};
+	$formspec{author} = $item[2];
     }
 
 pattern_def: '!pattern' var_name pattern
@@ -146,7 +147,7 @@ heading: '!head' /.*/    { push @lines, [ 'head', $item[2] ] }
 
 group_field: '!field' group_name name label(?)
     {
-	warn "[Text::FormBuilder] The !field directive has been DEPRECATED (input file line $thisline). Please use the name:GROUP style";
+	warn "WARNING line $thisline: The '!field' directive has been DEPRECATED. Use the 'name:GROUP' style instead.\n";
 	push @lines, [ 'group', { name => $item{name}, label => $item{'label(?)'}[0], group => $item{group_name} } ];
     }
 
@@ -226,7 +227,7 @@ growable: '*' limit(?) { $item{'limit(?)'}[0] || 1 }
 
 limit: /\d+/
 
-label: '|' (simple_multiword | quoted_string) { $item[2] }
+label: '|' string { $item[2] }
 
 hint: bracket_block
 
@@ -236,7 +237,9 @@ builtin_field: /textarea|text|password|file|checkbox|radio|select|hidden|static/
 
 other: '+' 'other' { 1 }
 
-default: '=' (simple_multiword | quoted_string) { $item[2] }
+default: '=' string { $item[2] }
+
+string: simple_multiword | quoted_string
 
 # for simple multiword values not involving punctuation
 simple_multiword: <skip:''> /\w[\w\t ]*/ { $item[2] }
@@ -248,11 +251,11 @@ quoted_string: <skip:''> "'" /(\\'|[^'])*/ "'"
 
 option_list: options | list_var
     
-options: '{' option(s /,/) '}'
+options: '{' option(s /\s*,\s*/) '}'
 
 list_var: /@[A-Z_]+/ { $list_var = $item[1] }
 
-option: (simple_multiword | quoted_string) display_text(?)
+option: string display_text(?)
     { push @options, { $item[1] => $item{'display_text(?)'}[0] } }
 
 value: identifier

@@ -820,7 +820,7 @@ Takes a package name, and writes out a new module that can be used by your
 CGI script to render the form. This way, you only need CGI::FormBuilder on
 your server, and you don't have to parse the form spec each time you want 
 to display your form. The generated module is a subclass of L<CGI::FormBuilder>,
-that will passa long any constructor arguments to FormBuilder, and set up
+that will pass along any constructor arguments to FormBuilder, and set up
 the fields for you.
 
 First, you parse the formspec and write the module, which you can do as a one-liner:
@@ -982,7 +982,7 @@ the C<!field> directive.
 
 =item C<!field>
 
-B<DEPRACATED> Include a named instance of a group defined with C<!group>.
+B<DEPRECATED> Include a named instance of a group defined with C<!group>.
 
 =item C<!title>
 
@@ -1222,7 +1222,7 @@ Better tests!
 
 =head2 Language/Parser
 
-Deprecate the C<!field> directive
+Make sure that multiple runs of the parser don't share data.
 
 Allow renaming of the submit button; allow renaming and inclusion of a 
 reset button
@@ -1237,6 +1237,9 @@ validate. These should cause C<build> to emit a warning before ignoring them.
 C<!include> directive to include external formspec files
 
 =head2 Code generation/Templates
+
+Expose some of the currently private functions to be able to get the generated
+code text directly, without printing.
 
 Revise the generated form constructing code to use the C<fieldopts>
 option to C<< FB->new >>; will require FB 3.02 to run.
