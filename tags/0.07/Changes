@@ -1,0 +1,32 @@
+Release history for Text::FormBuilder.
+
+0.07 - 16 Dec 2004
+    * added a create_form exported method to "do the right
+      thing" in simple cases
+    * added parse_array method to parse an array of lines making
+      up a formspec
+    * inline field groups via the !group and !field directives
+    * added write_script method to write a skeleton CGI
+      script around the FormBuilder object
+    * added external documentation of usage examples
+    * added a !note directive for inserting arbitrary text
+      between lines in the form
+    
+0.06 - 19 Nov 2004
+    * marked Parse::RecDescent as an explicit dependency
+    * added a single-quoted string to the grammar that
+      can be used in the labels and default values to include
+      characters not in [\w\t ]
+    * generated code leaves out overwrriten options
+    * allow option lists to have simple multiword and quoted
+      string values
+    * allow for validated but not required fields
+    * added a !section directive that splits up a form into
+      sub-tables with their own ids and captions
+    * fall through to CGI::FormBuilder builtin option lists
+      if @LIST does not match a list directive
+    * customizable messages similar to CGI::FormBuilder
+    * customizable charset for the generated HTML page
+    
+0.05 -  9 Nov 2004
+    * First CPAN release
