@@ -9,6 +9,8 @@ use vars qw($VERSION @EXPORT);
 $VERSION = '0.09_02';
 @EXPORT = qw(create_form);
 
+#$::RD_TRACE = 1;
+
 use Carp;
 use Text::FormBuilder::Parser;
 use CGI::FormBuilder;
@@ -16,7 +18,6 @@ use CGI::FormBuilder;
 # the static default options passed to CGI::FormBuilder->new
 my %DEFAULT_OPTIONS = (
     method => 'GET',
-##     javascript => 1,
     keepextras => 1,
 );
 
@@ -225,7 +226,7 @@ sub build {
         }
     }
     
-    # use the list for displaying checkbox groups
+    # use columns for displaying checkbox fields larger than 2 items
     foreach (@{ $self->{form_spec}{fields} }) {
         if (ref $$_{options} and @{ $$_{options} } >= 3) {
             $$_{columns} = int(@{ $$_{options} } / 8) + 1;
@@ -534,7 +535,8 @@ q[
                 
                 $OUT .= qq[    <td><span class="fieldgroup">];
                 $OUT .= join(' ', map { qq[<small class="sublabel">$$_{label}</small> $$_{field} $$_{comment}] } @group_fields);
-                $OUT .= " ] . $msg_invalid . q[" if $$_{invalid};
+                #TODO: allow comments on field groups
+                $OUT .= " ] . $msg_invalid . q[" if grep { $$_{invalid} } @group_fields;
                 
                 $OUT .= qq[    </span></td>\n];
                 $OUT .= qq[  </tr>\n];
@@ -1161,6 +1163,13 @@ the name of the subfield defined in the group (e.g. C<month>, C<day>, C<year>).
 Thus in this example, you would end up with the form fields C<birthday_month>,
 C<birthday_day>, and C<birthday_year>.
 
+You can also use groups in normal field lines:
+    
+    birthday|Your birthday:DATE
+
+The only (currently) supported pieces of a fieldspec that may be used with a
+group in this notation are name and label.
+
 =head2 Comments
 
     # comment ...
@@ -1174,15 +1183,7 @@ Document the commmand line tool
 Allow renaming of the submit button; allow renaming and inclusion of a 
 reset button
 
-Allow groups to be used in normal field lines something like this:
-
-    !group DATE {
-        month
-        day
-        year
-    }
-    
-    dob|Your birthday:DATE
+Allow comments on group fields (rendered after the all the fields)
 
 Pieces that wouldn't make sense in a group field: size, row/col, options,
 validate. These should cause C<build> to emit a warning before ignoring them.
