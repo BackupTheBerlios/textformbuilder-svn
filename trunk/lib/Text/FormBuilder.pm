@@ -149,7 +149,7 @@ sub build {
     delete $options{$_} foreach qw(form_only css extra_css charset);
     
     # expand groups
-    if (my %groups = %{ $self->{form_spec}{groups} || {} }) {
+    if (my %groups = %{ $self->{form_spec}{groups} || {} }) {        
         for my $section (@{ $self->{form_spec}{sections} || [] }) {
             foreach (grep { $$_[0] eq 'group' } @{ $$section{lines} }) {
                 $$_[1]{group} =~ s/^\%//;       # strip leading % from group var name
@@ -326,6 +326,8 @@ sub _form_options_code {
 # dump the field setup subs as eval-able code
 # pass in the variable name of the form object
 # (defaults to '$form')
+# TODO: revise this code to use the new 'fieldopts'
+# option to the FB constructor (requires FB 3.02)
 sub _field_setup_code {
     my $self = shift;
     my $object_name = shift || '$form';
@@ -520,7 +522,7 @@ q[
                 $OUT .= (grep { $$_{invalid} } @group_fields) ? qq[  <tr class="invalid">\n] : qq[  <tr>\n];
                 
                 $OUT .= '    <th class="label">';
-                $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}:</strong>] : "$$line[1]{label}:";
+                $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}</strong>] : "$$line[1]{label}";
                 $OUT .= qq[</th>\n];
                 
                 $OUT .= qq[    <td><span class="fieldgroup">];
@@ -774,6 +776,9 @@ HTML to a file, or to STDOUT if no filename is given.
 
 =head2 write_module
 
+I<B<Note:> The code output from the C<write_*> methods may be in flux for
+the next few versions, as I coordinate with the B<FormBuilder> project.>
+
     $parser->write_module($package, $use_tidy);
 
 Takes a package name, and writes out a new module that can be used by your
@@ -885,7 +890,6 @@ object-oriented interface, since that gives you more control over things.
 These are the default settings that are passed to C<< CGI::FormBuilder->new >>:
 
     method => 'GET'
-    javascript => 0
     keepextras => 1
 
 Any of these can be overriden by the C<build> method:
@@ -912,8 +916,6 @@ Any of these can be overriden by the C<build> method:
         option2[display string],
         ...
     }
-    
-    !list NAME &{ CODE }
     
     !group NAME {
         field1
@@ -1183,6 +1185,9 @@ Alternative format using C<< <fieldset> >> tags instead of C<< <h2> >>
 section headers
 
 Make the generated modules into subclasses of CGI::FormBuilder
+
+Revise the generated form constructing code to use the C<fieldopts>
+option to C<< FB->new >>; will require FB 3.02 to run.
 
 Better integration with L<CGI::FormBuilder>'s templating system
 
