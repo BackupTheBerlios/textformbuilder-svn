@@ -5,7 +5,7 @@ use warnings;
 
 use vars qw($VERSION);
 
-$VERSION = '0.06_03';
+$VERSION = '0.06';
 
 use Carp;
 use Text::FormBuilder::Parser;
