@@ -783,6 +783,8 @@ Any line beginning with a C<#> is considered a comment.
 
 =head1 TODO
 
+Allow for custom wrappers around the C<form_template>
+
 Use the custom message file format for messages in the built in template
 
 Maybe use HTML::Template instead of Text::Template for the built in template
