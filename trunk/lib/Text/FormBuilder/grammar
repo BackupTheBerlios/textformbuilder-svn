@@ -141,14 +141,21 @@ size: /\d+/
 row_col: /\d+/ /,\s*/ /\d+/
     { $rows = $item[1]; $cols = $item[3] }
 
-#TODO: zero width labels
-label: '|' /[^:\[\{\/\n]*/i { $item[2] }
+label: '|' (simple_multiword | quoted_string) { $item[2] }
 
 hint: '[' /[^\]]+/ ']'    { $item[2] }
 
 type: ':' /textarea|text|password|file|checkbox|radio|select|hidden|static/
 
-default: '=' /[^\@\{\s]+/
+default: '=' (simple_multiword | quoted_string) { $item[2] }
+
+# for simple multiword values not involving punctuation
+simple_multiword: <skip:''> /[\w\t ]+/ { $item[2] }
+
+# my attempt at a single-quoted, non-interpolating string
+# where the backslash can escape literal single quotes
+quoted_string: <skip:''> "'" /(\\'|[^'])*/ "'"
+    { $item[3] =~ s/\\'/'/g; $item[3] }
 
 option_list: options | list_var
     
