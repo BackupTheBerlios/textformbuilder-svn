@@ -1,7 +1,10 @@
 { 
     my (
 	$context,      # line or group
-	@lines,        # master data structure
+	@sections,     # master data structure
+	$section_head,
+	$section_id,
+	@lines,        # lines in each section
 	$title,
 	$author,
 	$description,
@@ -22,14 +25,27 @@
 
 form_spec: (list_def | description_def | group_def | line)(s)
     {
+	# grab the last section, if there is any
+	if (@lines) {
+	    push @sections,
+		{
+		    id   => $section_id,
+		    head => $section_head,
+		    lines => [ @lines ],
+		};
+	}
+	
+	$section_id = $item{identifier};
+	$section_head = $item[3];
+	@lines = ();
 	$return = {
 	    title    => $title,
 	    author   => $author,
 	    description => $description,
 	    lists    => \%lists,
 	    patterns => \%patterns,
-	    lines    => \@lines,
 	    groups   => \%groups,
+	    sections => \@sections,
 	}
     }
 
@@ -63,7 +79,7 @@ group_def: '!group' { $context = 'group' } var_name '{' field_line(s) '}' { $con
     }
 
 field_line: <skip:'[ \t]*'> ( field | comment | blank ) "\n"
-line: <skip:'[ \t]*'> ( title | author | pattern_def | heading | group_field | unknown_directive | field | comment | blank ) "\n"
+line: <skip:'[ \t]*'> ( title | author | pattern_def | section_head | heading | group_field | unknown_directive | field | comment | blank ) "\n"
 
 title: '!title' /.*/
     {
@@ -81,6 +97,25 @@ pattern_def: '!pattern' var_name pattern
     { $patterns{$item{var_name}} = $item{pattern} }
 
 pattern: /.*/
+
+section_head: '!section' identifier /.*/
+    {
+	#warn "starting section $item{identifier}\n";
+	#warn "  with heading $item[3]\n" if $item[3];
+	
+	if (@lines) {
+	    push @sections,
+		{
+		    id   => $section_id,
+		    head => $section_head,
+		    lines => [ @lines ],
+		};
+	}
+	
+	$section_id = $item{identifier};
+	$section_head = $item[3];
+	@lines = ();
+    }
 
 heading: '!head' /.*/    { push @lines, [ 'head', $item[2] ] }
 

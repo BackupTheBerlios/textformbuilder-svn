@@ -86,29 +86,36 @@ sub build {
     
     # expand groups
     my %groups = %{ $self->{form_spec}{groups} || {} };
-    foreach (grep { $$_[0] eq 'group' } @{ $self->{form_spec}{lines} || [] }) {
-        $$_[1]{group} =~ s/^\%//;       # strip leading % from group var name
-        
-        if (exists $groups{$$_[1]{group}}) {
-            my @fields; # fields in the group
-            push @fields, { %$_ } foreach @{ $groups{$$_[1]{group}} };
-            for my $field (@fields) {
-                $$field{label} ||= ucfirst $$field{name};
-                $$field{name} = "$$_[1]{name}_$$field{name}";                
+    
+    for my $section (@{ $self->{form_spec}{sections} || [] }) {
+##         foreach (grep { $$_[0] eq 'group' } @{ $self->{form_spec}{lines} || [] }) {
+        foreach (grep { $$_[0] eq 'group' } @{ $$section{lines} }) {
+            $$_[1]{group} =~ s/^\%//;       # strip leading % from group var name
+            
+            if (exists $groups{$$_[1]{group}}) {
+                my @fields; # fields in the group
+                push @fields, { %$_ } foreach @{ $groups{$$_[1]{group}} };
+                for my $field (@fields) {
+                    $$field{label} ||= ucfirst $$field{name};
+                    $$field{name} = "$$_[1]{name}_$$field{name}";                
+                }
+                $_ = [ 'group', { label => $$_[1]{label} || ucfirst(join(' ',split('_',$$_[1]{name}))), group => \@fields } ];
             }
-            $_ = [ 'group', { label => $$_[1]{label} || ucfirst(join(' ',split('_',$$_[1]{name}))), group => \@fields } ];
         }
     }
     
     $self->{form_spec}{fields} = [];
-    for my $line (@{ $self->{form_spec}{lines} || [] }) {
-        if ($$line[0] eq 'group') {
-            push @{ $self->{form_spec}{fields} }, $_ foreach @{ $$line[1]{group} };
-        } elsif ($$line[0] eq 'field') {
-            push @{ $self->{form_spec}{fields} }, $$line[1];
+    
+    for my $section (@{ $self->{form_spec}{sections} || [] }) {
+        #for my $line (@{ $self->{form_spec}{lines} || [] }) {
+        for my $line (@{ $$section{lines} }) {
+            if ($$line[0] eq 'group') {
+                push @{ $self->{form_spec}{fields} }, $_ foreach @{ $$line[1]{group} };
+            } elsif ($$line[0] eq 'field') {
+                push @{ $self->{form_spec}{fields} }, $$line[1];
+            }
         }
     }
-    
     
     # substitute in list names
     my %lists = %{ $self->{form_spec}{lists} || {} };
@@ -148,9 +155,10 @@ sub build {
     # param, not whether it is true or defined
     $$_{required} or delete $$_{required} foreach @{ $self->{form_spec}{fields} };
 
-    
+    # need to explicity set the fields so that simple text fields get picked up
     $self->{form} = CGI::FormBuilder->new(
         %DEFAULT_OPTIONS,
+        fields   => [ map { $$_{name} } @{ $self->{form_spec}{fields} } ],
         required => [ map { $$_{name} } grep { $$_{required} } @{ $self->{form_spec}{fields} } ],
         title => $self->{form_spec}{title},
         text  => $self->{form_spec}{description},
@@ -162,7 +170,7 @@ sub build {
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
-                lines       => $self->{form_spec}{lines},
+                sections    => $self->{form_spec}{sections},
                 author      => $self->{form_spec}{author},
                 description => $self->{form_spec}{description},
             },
@@ -213,6 +221,7 @@ sub write_module {
         %DEFAULT_OPTIONS,
         title => $self->{form_spec}{title},
         text  => $self->{form_spec}{description},
+        fields   => [ map { $$_{name} } @{ $self->{form_spec}{fields} } ],
         required => [ map { $$_{name} } grep { $$_{required} } @{ $self->{form_spec}{fields} } ],
         template => {
             type => 'Text',
@@ -222,7 +231,7 @@ sub write_module {
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
-                lines       => $self->{form_spec}{lines},
+                sections    => $self->{form_spec}{sections},
                 author      => $self->{form_spec}{author},
                 description => $self->{form_spec}{description},
             },
@@ -298,42 +307,46 @@ q[<% $description ? qq[<p id="description">$description</p>] : '' %>
     $OUT = join("\n", map { $$_{field} } grep { $$_{type} eq 'hidden' } @fields);
 %>
 
-<table>
-
-<% TABLE_LINE: for my $line (@lines) {
-
-    if ($$line[0] eq 'head') {
-        $OUT .= qq[  <tr><th class="sectionhead" colspan="2"><h2>$$line[1]</h2></th></tr>\n]
-    } elsif ($$line[0] eq 'field') {
-        #TODO: we only need the field names, not the full field spec in the lines strucutre
-        local $_ = $field{$$line[1]{name}};
-        # skip hidden fields in the table
-        next TABLE_LINE if $$_{type} eq 'hidden';
-        
-        $OUT .= $$_{invalid} ? qq[  <tr class="invalid">] : qq[  <tr>];
-        $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
-        if ($$_{invalid}) {
-            $OUT .= qq[<td>$$_{field} $$_{comment} Missing or invalid value.</td></tr>\n];
-        } else {
-            $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
+<%
+    SECTION: while (my $section = shift @sections) {
+        $OUT .= qq[<table id="$$section{id}">\n];
+        $OUT .= qq[  <caption><h2>$$section{head}</h2></caption>] if $$section{head};
+        TABLE_LINE: for my $line (@{ $$section{lines} }) {
+            if ($$line[0] eq 'head') {
+                $OUT .= qq[  <tr><th class="sectionhead" colspan="2"><h3>$$line[1]</h3></th></tr>\n]
+            } elsif ($$line[0] eq 'field') {
+                #TODO: we only need the field names, not the full field spec in the lines strucutre
+                local $_ = $field{$$line[1]{name}};
+                # skip hidden fields in the table
+                next TABLE_LINE if $$_{type} eq 'hidden';
+                
+                $OUT .= $$_{invalid} ? qq[  <tr class="invalid">] : qq[  <tr>];
+                $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}:</strong>] : "$$_{label}:") . '</th>';
+                if ($$_{invalid}) {
+                    $OUT .= qq[<td>$$_{field} $$_{comment} Missing or invalid value.</td></tr>\n];
+                } else {
+                    $OUT .= qq[<td>$$_{field} $$_{comment}</td></tr>\n];
+                }
+            } elsif ($$line[0] eq 'group') {
+                my @field_names = map { $$_{name} } @{ $$line[1]{group} };
+                my @group_fields = map { $field{$_} } @field_names;
+                $OUT .= (grep { $$_{invalid} } @group_fields) ? qq[  <tr class="invalid">\n] : qq[  <tr>\n];
+                
+                $OUT .= '    <th class="label">';
+                $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}:</strong>] : "$$line[1]{label}:";
+                $OUT .= qq[</th>\n];
+                
+                $OUT .= qq[    <td>];
+                $OUT .= join(' ', map { qq[<small class="sublabel">$$_{label}</small> $$_{field} $$_{comment}] } @group_fields);
+                $OUT .= qq[    </td>\n];
+                $OUT .= qq[  </tr>\n];
+            }   
         }
-    } elsif ($$line[0] eq 'group') {
-        my @field_names = map { $$_{name} } @{ $$line[1]{group} };
-        my @group_fields = map { $field{$_} } @field_names;
-        $OUT .= (grep { $$_{invalid} } @group_fields) ? qq[  <tr class="invalid">\n] : qq[  <tr>\n];
-        
-        $OUT .= '    <th class="label">';
-        $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}:</strong>] : "$$line[1]{label}:";
-        $OUT .= qq[</th>\n];
-        
-        $OUT .= qq[    <td>];
-        $OUT .= join(' ', map { qq[<small class="sublabel">$$_{label}</small> $$_{field} $$_{comment}] } @group_fields);
-        $OUT .= qq[    </td>\n];
-        $OUT .= qq[  </tr>\n];
-    }   
-    
-
-} %>
+        # close the table if there are sections remaining
+        # but leave the last one open for the submit button
+        $OUT .= qq[</table>\n] if @sections;
+    }
+%>
   <tr><th></th><td style="padding-top: 1em;"><% $submit %></td></tr>
 </table>
 <% $end %>
@@ -346,9 +359,11 @@ q[<html>
 <head>
   <title><% $title %><% $author ? ' - ' . ucfirst $author : '' %></title>
   <style type="text/css">
+    table { margin: .5em 1em; }
     #author, #footer { font-style: italic; }
+    caption h2 { padding: .125em .5em; background: #ddd; text-align: left; }
     th { text-align: left; }
-    th h2 { padding: .125em .5em; background: #eee; }
+    th h3 { padding: .125em .5em; background: #eee; }
     th.label { font-weight: normal; text-align: right; vertical-align: top; }
     td ul { list-style: none; padding-left: 0; margin-left: 0; }
     .sublabel { color: #999; }
@@ -474,8 +489,11 @@ dropdown lists or change input types at runtime.
     # or just print to STDOUT
     $parser->write;
 
-Calls C<render> on the FormBuilder form, and either writes the resulting HTML
-to a file, or to STDOUT if no filename is given.
+Calls C<render> on the FormBuilder form, and either writes the resulting
+HTML to a file, or to STDOUT if no filename is given.
+
+CSS Hint: to get multiple sections to all line up their fields, set a
+standard width for th.label
 
 =head2 write_module
 
@@ -544,6 +562,8 @@ form spec.
     
     !list name &{ CODE }
     
+    !section id heading
+    
     !head ...
 
 =head2 Directives
@@ -566,6 +586,11 @@ Defines a list for use in a C<radio>, C<checkbox>, or C<select> field.
 
 A brief description of the form. Suitable for special instructions on how to
 fill out the form.
+
+=item C<!section>
+
+Starts a new section. Each section has its own heading and id, which are
+written by default into spearate tables.
 
 =item C<!head>
 
@@ -723,8 +748,7 @@ Any line beginning with a C<#> is considered a comment.
 
 Use the custom message file format for messages in the built in template
 
-C<!section> directive to split up the table into multiple tables, each
-with their own id and (optional) heading
+Custom CSS, both in addition to, and replacing the built in.
 
 Use HTML::Template instead of Text::Template for the built in template
 (since CGI::FormBuilder users may be more likely to already have HTML::Template)
@@ -750,7 +774,7 @@ L<CGI::FormBuilder>
 
 Thanks to eszpee for pointing out some bugs in the default value parsing,
 as well as some suggestions for i18n/l10n and splitting up long forms into
-sections (that as of this release are still on the TODO list ;-).
+sections.
 
 =head1 AUTHOR
 
