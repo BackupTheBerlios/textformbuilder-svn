@@ -48,7 +48,6 @@ sub parse_file {
     return $self->parse_text($src);
 }
 
-#TODO: get this working
 sub parse_handle {
     my ($self, $fh) = @_;
     
@@ -56,8 +55,9 @@ sub parse_handle {
     $self = $self->new unless ref $self;
     
     my $src;
-    while ($_ = readline($fh)) { $src .= $_ }
-    warn $src;
+    local $/ = undef;
+    $src = readline($fh);
+    close $fh;
     return $self->parse_text($src);
 }
 
@@ -150,6 +150,13 @@ for you if they are called as a class method.
     $p->parse_file($filename);
 
 Parses the contents of of the file C<$filename>. Returns the parser object.
+
+=head2 parse_handle
+
+    $p->parse_handle($fh);
+
+Slurps the remainder of the file handle C<$fh> and parses the contents.
+Returns the parser object.
 
 =head2 parse_array
 
