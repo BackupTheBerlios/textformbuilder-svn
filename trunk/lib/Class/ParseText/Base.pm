@@ -76,6 +76,7 @@ sub parse_text {
     # get the name of the start rule
     my $start_rule = $self->{start_rule};
     croak '[' . (caller(0))[3] . '] No start rule given for the parser' unless defined $start_rule;
+    
     $self->{$start_rule} = $self->{parser}->$start_rule($src);
     
     # mark structures as not built (newly parsed text)
@@ -202,6 +203,9 @@ the parse are stored in the object with this same name as their key.
 Set to true to ensure that the text to be parsed ends in a newline.
 
 =back
+
+I<Be sure that you explicitly return the object!> This is a bug that
+has bitten me a number of times.
 
 =head1 TODO
 

@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter Class::ParseText::Base);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.08';
+$VERSION = '0.09_01';
 @EXPORT = qw(create_form);
 
 use Carp;
