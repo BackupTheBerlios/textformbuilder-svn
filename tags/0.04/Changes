@@ -1,0 +1,6 @@
+Revision history for Perl extension Text::FormBuilder.
+
+0.01  Mon Oct  4 09:25:07 2004
+	- original version; created by h2xs 1.23 with options
+		-Xn Text::FormBuilder
+
