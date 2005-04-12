@@ -23,6 +23,7 @@
 	$maxlength,
 	$rows,
 	$cols,
+	@submit,
     );
     my $context = 'line';	# start in line context by default
     my %formspec;
@@ -37,7 +38,7 @@ form_spec:
     { 
 	%formspec = ();  # clear the old formspec data
     }
-    (list_def | description_def | group_def | note | line)(s)
+    (list_def | description_def | group_def | note | unknown_block_directive | line)(s)
     {
 	# grab the last section, if there is any
 	if (@lines) {
@@ -58,6 +59,10 @@ form_spec:
 	    subs     => \%subs,
 	    groups   => \%groups,
 	    sections => \@sections,
+	    ( @submit ? 
+		(submit => @submit == 1 ? $submit[0] : \@submit) :
+		()
+	    ),
 	}
     }
 
@@ -105,7 +110,7 @@ bracket_block_content: /[^\[\]]+?/ | inner_bracket_block
 # field lines are the subset of lines that are allowed in a !group directive
 field_line: <skip:'[ \t]*'> ( field | comment | blank ) "\n"
 
-line: <skip:'[ \t]*'> ( title | author | pattern_def | section_head | heading | group_field | field_group | unknown_directive | field | comment | blank ) "\n"
+line: <skip:'[ \t]*'> ( title | author | pattern_def | section_head | heading | submit | group_field | field_group | unknown_directive | field | comment | blank ) /\n+/
 
 title: '!title' /.*/
     {
@@ -144,6 +149,12 @@ section_head: '!section' identifier /.*/
     }
 
 heading: '!head' /.*/    { push @lines, [ 'head', $item[2] ] }
+
+submit: '!submit' string(s /\s*,\s*/)
+    {
+	#warn scalar(@{ $item[2] }) . ' submit button(s)';
+	push @submit, @{ $item[2] };
+    }
 
 group_field: '!field' group_name name label(?)
     {
@@ -242,11 +253,11 @@ default: '=' string { $item[2] }
 string: simple_multiword | quoted_string
 
 # for simple multiword values not involving punctuation
-simple_multiword: <skip:''> /\w[\w\t ]*/ { $item[2] }
+simple_multiword: /\w/ <skip:''> /[\w\t ]*/ { $item[1] . $item[3] }
 
 # my attempt at a single-quoted, non-interpolating string
 # where the backslash can escape literal single quotes
-quoted_string: <skip:''> "'" /(\\'|[^'])*/ "'"
+quoted_string: "'" <skip:''> /(\\'|[^'])*/ "'"
     { $item[3] =~ s/\\'/'/g; $item[3] }
 
 option_list: options | list_var
@@ -277,3 +288,6 @@ identifier: /\w+/
 # skip unknown directives with a warning
 unknown_directive: /\!\S*/ /.*/
     { warn "[Text::Formbuilder] Skipping unknown directive '$item[1]' at input text line $thisline\n"; }
+
+unknown_block_directive: /\!\S*/ var_name(?) block
+    { warn "[Text::Formbuilder] Skipping unknown block directive '$item[1]' at input text line $thisline\n"; }

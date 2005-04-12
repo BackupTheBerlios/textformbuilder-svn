@@ -1,5 +1,9 @@
 Release history for Text::FormBuilder.
 
+0.11
+    * added a !submit directive to rename the submit button or to
+      have multiple submit buttons
+    
 0.10 - 25 Mar 2005
     * added support for fields with 'other' (requires FB 3.02)
     * added support for limited growth 'growable' fields (requires FB 3.02)

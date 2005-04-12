@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter Class::ParseText::Base);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.10';
+$VERSION = '0.11_01';
 @EXPORT = qw(create_form);
 
 #$::RD_TRACE = 1;
@@ -295,6 +295,7 @@ sub build {
         required => [ map { $$_{name} } grep { $$_{required} } @{ $self->{form_spec}{fields} } ],
         title => $self->{form_spec}{title},
         text  => $self->{form_spec}{description},
+        submit => $self->{form_spec}{submit},
         template => {
             type => 'Text',
             engine => {
@@ -962,6 +963,8 @@ Any of these can be overriden by the C<build> method:
     !note {
         ...
     }
+    
+    !submit button label, button label 2, ...
 
 =head2 Directives
 
@@ -1012,6 +1015,14 @@ next to each other.
 
 A text note that can be inserted as a row in the form. This is useful for
 special instructions at specific points in a long form.
+
+=item C<!submit>
+
+A list of one or more submit button labels in a comma-separated list. Each label
+is a L<string|/Strings>. Multiple instances of this directive may be used; later
+lists are simply appended to the earlier lists. All the submit buttons are 
+rendered together at the bottom of the form. See L<CGI::FormBuilder> for an
+explanation of how the multiple submit buttons work together in a form.
 
 =back
 
@@ -1097,6 +1108,12 @@ Growable fields also require JavaScript to function correctly.
 
     # you can have as many people as you like
     person*:text
+
+To set a limit to the maximum number of inputs a field can grow to, add
+a number after the C<*>:
+
+    # allow up to 5 musicians
+    musician*5:text
 
 To create a C<radio> or C<select> field that includes an "other" option,
 append the string C<+other> to the field type:
@@ -1222,10 +1239,13 @@ Better tests!
 
 =head2 Language/Parser
 
+Debug flag (that sets/unsets C<$::RD_TRACE> in the parser)
+
 Make sure that multiple runs of the parser don't share data.
 
-Allow renaming of the submit button; allow renaming and inclusion of a 
-reset button
+Allow renaming and inclusion of a reset button
+
+Warn/suggest using the C<!submit> directive if some uses C<foo:submit>?
 
 Set FB constructor options directly in the formspec (via a C<!fb> or similar
 directive). The major issue here would be what format to use to allow for
@@ -1244,7 +1264,8 @@ code text directly, without printing.
 Revise the generated form constructing code to use the C<fieldopts>
 option to C<< FB->new >>; will require FB 3.02 to run.
 
-Better integration with L<CGI::FormBuilder>'s templating system
+Better integration with L<CGI::FormBuilder>'s templating system; rely on the
+FB messages instead of trying to make our own.
 
 Allow for custom wrappers around the C<form_template>
 
