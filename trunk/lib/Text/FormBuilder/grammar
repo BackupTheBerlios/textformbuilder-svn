@@ -63,6 +63,7 @@ form_spec:
 		(submit => @submit == 1 ? $submit[0] : \@submit) :
 		()
 	    ),
+	    reset => $formspec{reset},
 	}
     }
 
@@ -110,7 +111,7 @@ bracket_block_content: /[^\[\]]+?/ | inner_bracket_block
 # field lines are the subset of lines that are allowed in a !group directive
 field_line: <skip:'[ \t]*'> ( field | comment | blank ) "\n"
 
-line: <skip:'[ \t]*'> ( title | author | pattern_def | section_head | heading | submit | group_field | field_group | unknown_directive | field | comment | blank ) /\n+/
+line: <skip:'[ \t]*'> ( title | author | pattern_def | section_head | heading | submit | reset | group_field | field_group | unknown_directive | field | comment | blank ) /\n+/
 
 title: '!title' /.*/
     {
@@ -154,6 +155,12 @@ submit: '!submit' string(s /\s*,\s*/)
     {
 	#warn scalar(@{ $item[2] }) . ' submit button(s)';
 	push @submit, @{ $item[2] };
+    }
+
+reset: '!reset' string
+    {
+	warn "[Text::FormBuilder] Reset button redefined at input text line $thisline\n" if defined $formspec{reset};
+	$formspec{reset} = $item{string};
     }
 
 group_field: '!field' group_name name label(?)

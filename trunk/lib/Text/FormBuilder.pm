@@ -295,7 +295,10 @@ sub build {
         required => [ map { $$_{name} } grep { $$_{required} } @{ $self->{form_spec}{fields} } ],
         title => $self->{form_spec}{title},
         text  => $self->{form_spec}{description},
-        submit => $self->{form_spec}{submit},
+        # use 'defined' so we are able to differentiate between 'submit = 0' (no submit button)
+        # and 'submit = undef' (use default submit button)
+        ( defined $self->{form_spec}{submit} ? (submit => $self->{form_spec}{submit}) : () ),
+        reset => $self->{form_spec}{reset},
         template => {
             type => 'Text',
             engine => {
@@ -304,6 +307,7 @@ sub build {
                 DELIMITERS => [ qw(<% %>) ],
             },
             data => {
+                #TODO: make FB aware of sections
                 sections    => $self->{form_spec}{sections},
                 author      => $self->{form_spec}{author},
                 description => $self->{form_spec}{description},
@@ -533,7 +537,7 @@ q[
                 
                 # mark invalid fields
                 if ($$_{invalid}) {
-                    $OUT .= qq[<td>$$_{field} <span class="comment">$$_{comment}</span> ] . $msg_invalid . q[</td>];
+                    $OUT .= qq[<td>$$_{field} <span class="comment">$$_{comment}</span> $$_{error}</td>];
                 } else {
                     $OUT .= qq[<td>$$_{field} <span class="comment">$$_{comment}</span></td>];
                 }
@@ -550,9 +554,9 @@ q[
                 
                 $OUT .= qq[    <td><span class="fieldgroup">];
                 $OUT .= join(' ', map { qq[<small class="sublabel">$$_{label}</small> $$_{field} $$_{comment}] } @group_fields);
-                #TODO: allow comments on field groups
-                $OUT .= " ] . $msg_invalid . q[" if grep { $$_{invalid} } @group_fields;
-                
+                if (my @invalid = grep { $$_{invalid} } @group_fields) {
+                    $OUT .= ' ' . join('; ', map { $$_{error} } @invalid);
+                }                
                 $OUT .= qq[ <span class="comment">$$line[1]{comment}</span></span></td>\n];
                 $OUT .= qq[  </tr>\n];
             }   
@@ -565,7 +569,7 @@ q[
         }
     }
 %>
-  <tr><th></th><td style="padding-top: 1em;"><% $submit %></td></tr>
+  <tr><th></th><td style="padding-top: 1em;"><% $submit %> <% $reset %></td></tr>
 </table>
 </fieldset>
 <% $end %>
@@ -964,7 +968,9 @@ Any of these can be overriden by the C<build> method:
         ...
     }
     
-    !submit button label, button label 2, ...
+    !submit label, label 2, ...
+    
+    !reset label
 
 =head2 Directives
 
@@ -1023,6 +1029,13 @@ is a L<string|/Strings>. Multiple instances of this directive may be used; later
 lists are simply appended to the earlier lists. All the submit buttons are 
 rendered together at the bottom of the form. See L<CGI::FormBuilder> for an
 explanation of how the multiple submit buttons work together in a form.
+
+To disable the display of any submit button, use C<!submit 0>
+
+=item C<!reset>
+
+The label for the a reset button at the end of the form. No reset button will be
+rendered unless you use this directive.
 
 =back
 
@@ -1242,8 +1255,6 @@ Better tests!
 Debug flag (that sets/unsets C<$::RD_TRACE> in the parser)
 
 Make sure that multiple runs of the parser don't share data.
-
-Allow renaming and inclusion of a reset button
 
 Warn/suggest using the C<!submit> directive if some uses C<foo:submit>?
 
