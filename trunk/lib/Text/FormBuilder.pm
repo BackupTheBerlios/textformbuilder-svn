@@ -35,7 +35,7 @@ fieldset { margin: 1em 0; border: none; border-top: 2px solid #999; }
 legend { font-size: 1.25em; font-weight: bold; background: #ccc; padding: .125em .25em; border: 1px solid #666; }
 th { text-align: left; }
 th h2 { padding: .125em .5em; background: #eee; font-size: 1.25em; }
-th.label { font-weight: normal; text-align: right; vertical-align: top; }
+.label { font-weight: normal; text-align: right; vertical-align: top; }
 td ul { list-style: none; padding-left: 0; margin-left: 0; }
 .note { background: #eee; padding: .5em 1em; }
 .sublabel { color: #999; }
@@ -46,7 +46,7 @@ END
 my %DEFAULT_MESSAGES = (
     text_author   => 'Created by %s',
     text_madewith => 'Made with %s version %s',
-    text_required => '(Required fields are marked in <strong>bold</strong>.)',
+    text_required => '* denotes a <strong>required field</strong>.',
     text_invalid  => 'Missing or invalid value.',
 );
 
@@ -362,17 +362,19 @@ sub _field_setup_code {
         "\n", 
         map { $object_name . '->field' . Data::Dumper->Dump([$_],['*field']) . ';' } @{ $self->{form_spec}{fields} }
     );
-}    
+}
 
-sub write_module {
+sub as_module {
     my ($self, $package, $use_tidy) = @_;
 
     croak '[' . (caller(0))[3] . '] Expecting a package name' unless $package;
     
     # remove a trailing .pm
     $package =~ s/\.pm$//;
-##     warn  "[Text::FromBuilder::write_module] Removed extra '.pm' from package name\n" if $package =~ s/\.pm$//;
-    
+
+    # auto-build
+    $self->build unless $self->{built};
+
     my $form_options = $self->_form_options_code;
     my $field_setup = $self->_field_setup_code('$self');
     
@@ -428,14 +430,26 @@ sub new {
 # module return
 1;
 END
-    _write_output_file($module, (split(/::/, $package))[-1] . '.pm', $use_tidy);
+
+    $module = _tidy_code($module, $use_tidy) if $use_tidy;
+    
+    return $module;
+}
+
+sub write_module {
+    my ($self, $package, $use_tidy);
+    
+    my $module = $self->as_module($package, $use_tidy);
+    
+    _write_output_file($module, (split(/::/, $package))[-1] . '.pm');
     return $self;
 }
 
-sub write_script {
-    my ($self, $script_name, $use_tidy) = @_;
-
-    croak '[' . (caller(0))[3] . '] Expecting a script name' unless $script_name;
+sub as_script {
+    my ($self, $use_tidy) = @_;
+    
+    # auto-build
+    $self->build unless $self->{built};
     
     my $form_options = $self->_form_options_code;
     my $field_setup = $self->_field_setup_code('$form');
@@ -459,31 +473,42 @@ unless (\$form->submitted && \$form->validate) {
     # do something with the entered data
 }
 END
+    $script = _tidy_code($script, $use_tidy) if $use_tidy;
     
-    _write_output_file($script, $script_name, $use_tidy);   
+    return $script;
+}
+    
+sub write_script {
+    my ($self, $script_name, $use_tidy) = @_;
+
+    croak '[' . (caller(0))[3] . '] Expecting a script name' unless $script_name;
+
+    my $script = $self->as_script($use_tidy);
+    
+    _write_output_file($script, $script_name);   
     return $self;
 }
 
+sub _tidy_code {
+    my ($source_code, $use_tidy) = @_;
+    eval 'use Perl::Tidy';
+    carp '[' . (caller(0))[3] . "] Can't tidy the code: $@" and return $source_code if $@;
+    
+    # use the options string only if it begins with '_'
+    my $options = ($use_tidy =~ /^-/) ? $use_tidy : undef;
+    
+    my $tidy_code;
+    Perl::Tidy::perltidy(source => \$source_code, destination => \$tidy_code, argv => $options || $TIDY_OPTIONS);
+    
+    return $tidy_code;
+}
+
+
 sub _write_output_file {
-    my ($source_code, $outfile, $use_tidy) = @_;
-    if ($use_tidy) {
-        # clean up the generated code, if asked
-        eval 'use Perl::Tidy';
-        unless ($@) {
-            Perl::Tidy::perltidy(source => \$source_code, destination => $outfile, argv => $TIDY_OPTIONS);
-        } else {
-            carp '[' . (caller(0))[3] . "] Can't tidy the code: $@" if $@;
-            # fallback to just writing it as-is
-            open OUT, "> $outfile" or die $!;
-            print OUT $source_code;
-            close OUT;
-        }
-    } else {
-        # otherwise, just print as is
-        open OUT, "> $outfile" or die $!;
-        print OUT $source_code;
-        close OUT;
-    }
+    my ($source_code, $outfile) = @_;    
+    open OUT, "> $outfile" or croak '[' . (caller(1))[3] . "] Can't open $outfile for writing: $!";
+    print OUT $source_code;
+    close OUT;
 }
 
 
@@ -530,9 +555,9 @@ q[
                 
                 # special case single value checkboxes
                 if ($$_{type} eq 'checkbox' && @{ $$_{options} } == 1) {
-                    $OUT .= qq[<th></th>];
+                    $OUT .= qq[<td></td>];
                 } else {
-                    $OUT .= '<th class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}</strong>] : "$$_{label}") . '</th>';
+                    $OUT .= '<td class="label">' . ($$_{required} ? qq[* <strong class="required">$$_{label}</strong>] : "$$_{label}") . '</td>';
                 }
                 
                 # mark invalid fields
@@ -548,9 +573,9 @@ q[
                 my @group_fields = map { $field{$_} } map { $$_{name} } @{ $$line[1]{group} };
                 $OUT .= (grep { $$_{invalid} } @group_fields) ? qq[  <tr class="invalid">\n] : qq[  <tr>\n];
                 
-                $OUT .= '    <th class="label">';
-                $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}</strong>] : "$$line[1]{label}";
-                $OUT .= qq[</th>\n];
+                $OUT .= '    <td class="label">';
+                $OUT .= (grep { $$_{required} } @group_fields) ? qq[* <strong class="required">$$line[1]{label}</strong>] : "$$line[1]{label}";
+                $OUT .= qq[</td>\n];
                 
                 $OUT .= qq[    <td><span class="fieldgroup">];
                 $OUT .= join(' ', map { qq[<small class="sublabel">$$_{label}</small> $$_{field} $$_{comment}] } @group_fields);
@@ -814,6 +839,10 @@ dropdown lists or change input types at runtime.
 Calls C<render> on the FormBuilder form, and either writes the resulting
 HTML to a file, or to STDOUT if no filename is given.
 
+=head2 as_module
+
+    my $module_code = $parser->as_module($package, $use_tidy);
+
 =head2 write_module
 
 I<B<Note:> The code output from the C<write_*> methods may be in flux for
@@ -856,6 +885,13 @@ will run L<Perl::Tidy> on the generated code before writing the module file.
 
     # write tidier code
     $parser->write_module('My::Form', 1);
+
+If you set C<$use_tidy> to a string beginning with `-' C<write_module> will
+interpret C<$use_tidy> as the formatting option switches to pass to Perl::Tidy.
+
+=head2 as_script
+
+    my $script_code = $parser->as_script($use_tidy);
 
 =head2 write_script
 

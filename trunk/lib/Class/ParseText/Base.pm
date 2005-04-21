@@ -77,6 +77,9 @@ sub parse_text {
     my $start_rule = $self->{start_rule};
     croak '[' . (caller(0))[3] . '] No start rule given for the parser' unless defined $start_rule;
     
+    # set the trace in RecDescent if we have the debug flag
+    $::RD_TRACE = $self->{debug} ? 1 : undef;
+    
     $self->{$start_rule} = $self->{parser}->$start_rule($src);
     
     # mark structures as not built (newly parsed text)

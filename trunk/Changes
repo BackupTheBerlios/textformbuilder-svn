@@ -1,6 +1,8 @@
 Release history for Text::FormBuilder.
 
 0.11
+    * added as_script and as_module methods that just return the
+      Perl code
     * added a !reset directive to name and include a reset button
     * added a !submit directive to rename the submit button or to
       have multiple submit buttons
