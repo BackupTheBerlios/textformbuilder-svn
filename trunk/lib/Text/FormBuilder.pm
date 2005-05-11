@@ -46,7 +46,7 @@ END
 my %DEFAULT_MESSAGES = (
     text_author   => 'Created by %s',
     text_madewith => 'Made with %s version %s',
-    text_required => '* denotes a <strong>required field</strong>.',
+    text_required => 'Fields that are <strong>highlighted</strong> are required.',
     text_invalid  => 'Missing or invalid value.',
 );
 
@@ -437,11 +437,13 @@ END
 }
 
 sub write_module {
-    my ($self, $package, $use_tidy);
+    my ($self, $package, $use_tidy) = @_;
     
     my $module = $self->as_module($package, $use_tidy);
     
-    _write_output_file($module, (split(/::/, $package))[-1] . '.pm');
+    my $outfile = (split(/::/, $package))[-1];
+    $outfile .= '.pm' unless $outfile =~ /\.pm$/;
+    _write_output_file($module, $outfile);
     return $self;
 }
 
@@ -557,7 +559,7 @@ q[
                 if ($$_{type} eq 'checkbox' && @{ $$_{options} } == 1) {
                     $OUT .= qq[<td></td>];
                 } else {
-                    $OUT .= '<td class="label">' . ($$_{required} ? qq[* <strong class="required">$$_{label}</strong>] : "$$_{label}") . '</td>';
+                    $OUT .= '<td class="label">' . ($$_{required} ? qq[<strong class="required">$$_{label}</strong>] : "$$_{label}") . '</td>';
                 }
                 
                 # mark invalid fields
@@ -574,7 +576,7 @@ q[
                 $OUT .= (grep { $$_{invalid} } @group_fields) ? qq[  <tr class="invalid">\n] : qq[  <tr>\n];
                 
                 $OUT .= '    <td class="label">';
-                $OUT .= (grep { $$_{required} } @group_fields) ? qq[* <strong class="required">$$line[1]{label}</strong>] : "$$line[1]{label}";
+                $OUT .= (grep { $$_{required} } @group_fields) ? qq[<strong class="required">$$line[1]{label}</strong>] : "$$line[1]{label}";
                 $OUT .= qq[</td>\n];
                 
                 $OUT .= qq[    <td><span class="fieldgroup">];
@@ -1288,7 +1290,7 @@ Better tests!
 
 =head2 Language/Parser
 
-Debug flag (that sets/unsets C<$::RD_TRACE> in the parser)
+Support the C<multiple> attribute for a field.
 
 Make sure that multiple runs of the parser don't share data.
 
@@ -1304,9 +1306,6 @@ validate. These should cause C<build> to emit a warning before ignoring them.
 C<!include> directive to include external formspec files
 
 =head2 Code generation/Templates
-
-Expose some of the currently private functions to be able to get the generated
-code text directly, without printing.
 
 Revise the generated form constructing code to use the C<fieldopts>
 option to C<< FB->new >>; will require FB 3.02 to run.
