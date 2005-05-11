@@ -1134,6 +1134,10 @@ Recognized input types are the same as those used by CGI::FormBuilder:
     hidden
     static
 
+For multi-select fields, append a C<*> to the field type:
+
+    colors:select*
+
 To change the size of the input field, add a bracketed subscript after the
 field name (but before the descriptive label):
 
@@ -1289,8 +1293,6 @@ Make sure that the docs match the generated code.
 Better tests!
 
 =head2 Language/Parser
-
-Support the C<multiple> attribute for a field.
 
 Make sure that multiple runs of the parser don't share data.
 

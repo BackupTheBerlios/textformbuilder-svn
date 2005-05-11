@@ -18,6 +18,7 @@
 	$type,
 	@options,
 	$required,
+	$multiple,
 	$list_var,
 	$size,
 	$maxlength,
@@ -186,13 +187,14 @@ field_group: name label(?) hint(?) group_type comment(?)
 group_type: ':' var_name
 
 # this is the real heart of the thing
-field: name field_size(?) growable(?) label(?) hint(?) type(?) other(?) default(?) option_list(?) validate(?) comment(?)
+field: name field_size(?) growable(?) label(?) hint(?) type(?) multi(?) other(?) default(?) option_list(?) validate(?) comment(?)
     {
 	my $field = {
 	    name     => $item{name},
 	    growable => $item{'growable(?)'}[0],
 	    label    => $item{'label(?)'}[0],
 	    comment  => $item{'hint(?)'}[0],
+	    multiple => $item{'multi(?)'}[0],
 	    type     => $item{'type(?)'}[0],
 	    other    => $item{'other(?)'}[0],
 	    value    => $item{'default(?)'}[0],
@@ -217,6 +219,7 @@ field: name field_size(?) growable(?) label(?) hint(?) type(?) other(?) default(
 	
 	$type = undef;
 	$required = undef;
+	$multiple = undef;
 	$list_var = undef;
 	$size = undef;
 	$rows = undef;
@@ -252,6 +255,8 @@ hint: bracket_block
 type: ':' builtin_field
 
 builtin_field: /textarea|text|password|file|checkbox|radio|select|hidden|static/
+
+multi: '*' { 1 }
 
 other: '+' 'other' { 1 }
 

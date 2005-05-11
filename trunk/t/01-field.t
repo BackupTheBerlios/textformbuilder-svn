@@ -11,6 +11,7 @@ my %base = (
     growable => undef,
     label    => undef,
     list     => undef,
+    multiple => undef,
     name     => undef,
     other    => undef,
     required => undef,
