@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter Class::ParseText::Base);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.11_01';
+$VERSION = '0.11';
 @EXPORT = qw(create_form);
 
 #$::RD_TRACE = 1;

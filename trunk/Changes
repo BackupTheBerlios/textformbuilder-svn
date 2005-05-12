@@ -1,6 +1,6 @@
 Release history for Text::FormBuilder.
 
-0.11
+0.11 - 12 May 2005
     * added support for the 'multiple' attribute on fields
     * added as_script and as_module methods that just return the
       Perl code
