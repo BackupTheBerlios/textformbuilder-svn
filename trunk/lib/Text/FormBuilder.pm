@@ -197,6 +197,7 @@ sub build {
             if ($$line[0] eq 'group') {
                 push @{ $self->{form_spec}{fields} }, { %{$_} } foreach @{ $$line[1]{group} };
             } elsif ($$line[0] eq 'field') {
+                #die $$line[1] unless ref $$line[1];
                 push @{ $self->{form_spec}{fields} }, { %{$$line[1]} };
             }
         }
@@ -1348,8 +1349,6 @@ Better tests!
 
 =head2 Language/Parser
 
-Make sure that multiple runs of the parser don't share data.
-
 Pieces that wouldn't make sense in a group field: size, row/col, options,
 validate. These should cause C<build> to emit a warning before ignoring them.
 
@@ -1369,9 +1368,6 @@ Maybe use HTML::Template instead of Text::Template for the built in template
 (since CGI::FormBuilder users may be more likely to already have HTML::Template)
 
 =head1 BUGS
-
-Creating two $parsers in the same script causes the second one to get the data
-from the first one.
 
 Placing C<fields> in a C<!fb> directive does not behave as expected (i.e. they
 don't show up). This is not a big issue, since you should be defining your fields

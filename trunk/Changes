@@ -1,6 +1,7 @@
 Release history for Text::FormBuilder.
 
 0.12
+    * BUGFIX: stopped crosstalk of data from one object to another
     * added !fb directive to set FB constructor parameters directly;
       uses YAML to hold strucutred data
     

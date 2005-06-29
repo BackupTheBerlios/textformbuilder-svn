@@ -3,15 +3,8 @@
 
 #########################
 
-# change 'tests => 1' to 'tests => last_test_to_print';
-
-use Test::More tests => 10;
+use Test::More qw(no_plan); #tests => 11;
 BEGIN { use_ok('Text::FormBuilder'); };
-
-#########################
-
-# Insert your test code below, the Test::More module is use()ed here so read
-# its man page ( perldoc Test::More ) for help writing this test script.
 
 my $p = Text::FormBuilder->new;
 isa_ok($p, 'Text::FormBuilder', 'new parser');
@@ -38,6 +31,9 @@ my $form = $p->parse(\$simple)->form;
 # we should have three fields
 is(keys %{ $form->fields }, 3, 'correct number of fields');
 
-my $p2 = Text::FormBuilder->parse_array([qw(code title semester instructor)]);
-is(keys %{ $p2->form->fields }, 4, 'correct number of fields from parse_array');
-#$p2->write;
+# create some additional parsers, to make sure we aren't sharing data
+my $p2 = Text::FormBuilder->parse_text($simple);
+is(keys %{ $p2->form->fields }, 3, 'correct number of fields from parse_text');
+
+my $p3 = Text::FormBuilder->parse_array(qw(code title semester instructor));
+is(keys %{ $p3->form->fields }, 4, 'correct number of fields from parse_array');

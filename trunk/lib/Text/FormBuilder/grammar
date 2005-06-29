@@ -36,8 +36,11 @@
 }
 
 form_spec:
-    { 
-	%formspec = ();  # clear the old formspec data
+    {
+	# clear out old data, so we don't end up with old data in new objects
+	@lines    = ();
+	@sections = ();
+	%formspec = ();
     }
     (list_def | description_def | group_def | note | fb_params | unknown_block_directive | line)(s)
     {
@@ -51,20 +54,19 @@ form_spec:
 		};
 	}
 	
+	# make copies instead of taking references, again so we
+	# don't end up with connections between objects
 	$return = {
 	    fb_params   => $formspec{fb_params},
 	    title       => $formspec{title},
 	    author      => $formspec{author},
 	    description => $formspec{description},
-	    lists       => \%lists,
-	    patterns    => \%patterns,
-	    subs        => \%subs,
-	    groups      => \%groups,
-	    sections    => \@sections,
-	    ( @submit ? 
-		(submit => @submit == 1 ? $submit[0] : \@submit) :
-		()
-	    ),
+	    lists       => { %lists },
+	    patterns    => { %patterns },
+	    subs        => { %subs },
+	    groups      => { %groups },
+	    sections    => [ @sections ],
+	    ( @submit ? (submit => @submit == 1 ? $submit[0] : [ @submit ]) : () ),
 	    reset       => $formspec{reset},
 	}
     }
@@ -231,6 +233,8 @@ field: name field_size(?) growable(?) label(?) hint(?) type(?) multi(?) other(?)
 	$cols = undef;
 	$maxlength = undef;
 	@options = ();
+	
+	#warn "$$field{name}: $field";
 	
 	$field;
     }
