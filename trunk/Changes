@@ -1,5 +1,9 @@
 Release history for Text::FormBuilder.
 
+0.12
+    * added !fb directive to set FB constructor parameters directly;
+      uses YAML to hold strucutred data
+    
 0.11 - 12 May 2005
     * added support for the 'multiple' attribute on fields
     * added as_script and as_module methods that just return the

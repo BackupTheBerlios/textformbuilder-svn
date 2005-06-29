@@ -39,7 +39,7 @@ form_spec:
     { 
 	%formspec = ();  # clear the old formspec data
     }
-    (list_def | description_def | group_def | note | unknown_block_directive | line)(s)
+    (list_def | description_def | group_def | note | fb_params | unknown_block_directive | line)(s)
     {
 	# grab the last section, if there is any
 	if (@lines) {
@@ -52,19 +52,20 @@ form_spec:
 	}
 	
 	$return = {
-	    title    => $formspec{title},
-	    author   => $formspec{author},
+	    fb_params   => $formspec{fb_params},
+	    title       => $formspec{title},
+	    author      => $formspec{author},
 	    description => $formspec{description},
-	    lists    => \%lists,
-	    patterns => \%patterns,
-	    subs     => \%subs,
-	    groups   => \%groups,
-	    sections => \@sections,
+	    lists       => \%lists,
+	    patterns    => \%patterns,
+	    subs        => \%subs,
+	    groups      => \%groups,
+	    sections    => \@sections,
 	    ( @submit ? 
 		(submit => @submit == 1 ? $submit[0] : \@submit) :
 		()
 	    ),
-	    reset => $formspec{reset},
+	    reset       => $formspec{reset},
 	}
     }
 
@@ -172,6 +173,10 @@ group_field: '!field' group_name name label(?)
 
 group_name: /%[A-Z_]+/
 
+# parameters that get passed to the FB constructor; these are serialized in YAML
+fb_params: '!fb' block
+    { $formspec{fb_params} .= $item{block}; }
+
 field_group: name label(?) hint(?) group_type comment(?)
     {
 	#warn "[$thisline] comment = $item{'hint(?)'}[0]\n" if $item{'hint(?)'}[0];
@@ -188,7 +193,7 @@ group_type: ':' var_name
 
 # this is the real heart of the thing
 field: name field_size(?) growable(?) label(?) hint(?) type(?) multi(?) other(?) default(?) option_list(?) validate(?) comment(?)
-    {
+    {	
 	my $field = {
 	    name     => $item{name},
 	    growable => $item{'growable(?)'}[0],

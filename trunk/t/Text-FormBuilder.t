@@ -5,7 +5,7 @@
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use Test::More qw(no_plan); #tests => 6;
+use Test::More tests => 10;
 BEGIN { use_ok('Text::FormBuilder'); };
 
 #########################
@@ -38,6 +38,6 @@ my $form = $p->parse(\$simple)->form;
 # we should have three fields
 is(keys %{ $form->fields }, 3, 'correct number of fields');
 
-## my $p2 = Text::FormBuilder->parse_array([qw(code title semester instructor)]);
-## is(keys %{ $p2->form->fields }, 4, 'correct number of fields from parse_array');
-## $p2->write;
+my $p2 = Text::FormBuilder->parse_array([qw(code title semester instructor)]);
+is(keys %{ $p2->form->fields }, 4, 'correct number of fields from parse_array');
+#$p2->write;

@@ -6,10 +6,8 @@ use warnings;
 use base qw(Exporter Class::ParseText::Base);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.11';
+$VERSION = '0.12_01';
 @EXPORT = qw(create_form);
-
-#$::RD_TRACE = 1;
 
 use Carp;
 use Text::FormBuilder::Parser;
@@ -287,6 +285,15 @@ sub build {
         }
     }
     
+    my %fb_params;
+    if ($self->{form_spec}->{fb_params}) {
+        require YAML;
+        eval { %fb_params = %{ YAML::Load($self->{form_spec}->{fb_params}) } };
+        if ($@) {
+            warn '[' . (caller(0))[3] . "] Bad !fb parameter block:\n$@";
+        }
+    }
+    
     # gather together all of the form options
     $self->{form_options} = {
         %DEFAULT_OPTIONS,
@@ -313,7 +320,9 @@ sub build {
                 description => $self->{form_spec}{description},
             },
         },
-        %options,
+        #TODO: fields in fb_params are not getting recognized
+        %fb_params,     # params from the formspec file
+        %options,       # params from this method invocation
     };
     
     # create the form object
@@ -683,6 +692,9 @@ L<CGI::FormBuilder>,
 L<Text::Template>,
 L<Class::Base>
 
+You will also need L<YAML>, if you want to use the L<C<dump>|/dump>
+method, or the L<C<!fb>|/!fb> directive in your formspec files.
+
 =head1 DESCRIPTION
 
 This module is intended to extend the idea of making it easy to create
@@ -1012,6 +1024,27 @@ Any of these can be overriden by the C<build> method:
 
 =head2 Directives
 
+All directives start with a C<!> followed by a keyword. There are two types of
+directives:
+
+=over
+
+=item Line directives
+
+Line directives occur all on one line, and require no special punctuation. Examples
+of line directives are L<C<!title>|/!title> and L<C<!section>|/!section>.
+
+=item Block directives
+
+Block directives consist of a directive keyword followed by a curly-brace delimited
+block. Examples of these are L<C<!group>|/!group> and L<C<!description>|/!description>.
+Some of these directives have their own internal structure; see the list of directives
+below for an explanation.
+
+=back
+
+And here is the complete list of directives
+
 =over
 
 =item C<!pattern>
@@ -1029,60 +1062,79 @@ the C<!field> directive.
 
 =item C<!field>
 
-B<DEPRECATED> Include a named instance of a group defined with C<!group>.
+B<DEPRECATED> Include a named instance of a group defined with C<!group>. See
+L<Field Groups|/Field Groups> for an explanation of the new way to include
+groups.
 
 =item C<!title>
 
-Title of the form.
+Line directive contianing the title of the form.
 
 =item C<!author>
 
-Author of the form.
+Line directive naming the author of the form.
 
 =item C<!description>
 
-A brief description of the form. Suitable for special instructions on how to
-fill out the form.
+A block directive containing a brief description of the form. Suitable for 
+special instructions on how to fill out the form. All of the text within the
+block is folded into a single paragraph.
 
 =item C<!section>
 
-Starts a new section. Each section has its own heading and id, which are
-written by default into spearate tables.
+A line directive that starts a new section. Each section has its own heading
+and id, which by default are rendered into spearate tables.
 
 =item C<!head>
 
-Inserts a heading between two fields. There can only be one heading between
-any two fields; the parser will warn you if you try to put two headings right
-next to each other.
+A line directive that inserts a heading between two fields. There can only be
+one heading between any two fields; the parser will warn you if you try to put
+two headings right next to each other.
 
 =item C<!note>
 
-A text note that can be inserted as a row in the form. This is useful for
-special instructions at specific points in a long form.
+A block directive containing a text note that can be inserted as a row in the
+form. This is useful for special instructions at specific points in a long form.
+Like L<C<!description>|/!description>, the text content is folded into a single
+paragraph.
 
 =item C<!submit>
 
-A list of one or more submit button labels in a comma-separated list. Each label
-is a L<string|/Strings>. Multiple instances of this directive may be used; later
-lists are simply appended to the earlier lists. All the submit buttons are 
-rendered together at the bottom of the form. See L<CGI::FormBuilder> for an
+A line directive with  one or more submit button labels in a comma-separated list.
+Each label is a L<string|/Strings>. Multiple instances of this directive may be
+used; later lists are simply appended to the earlier lists. All the submit buttons
+are rendered together at the bottom of the form. See L<CGI::FormBuilder> for an
 explanation of how the multiple submit buttons work together in a form.
 
 To disable the display of any submit button, use C<!submit 0>
 
 =item C<!reset>
 
-The label for the a reset button at the end of the form. No reset button will be
-rendered unless you use this directive.
+Line directive giving a label for the a reset button at the end of the form. No 
+reset button will be rendered unless you use this directive.
+
+=item C<!fb>
+
+The C<!fb> block directive allows you to include any parameters you want passed
+directly to the CGI::FormBuilder constructor. The block should be a hashref of
+parameters serialized as L<YAML>. Be sure to place the closing of the block on
+its own line, flush to the left edge, and to watch your indentation. Multiple
+C<!fb> blocks are concatenated, and the result is interpeted as one big chunk
+of YAML code.
+
+    !fb{
+    method: POST
+    action: '/custom/action'
+    javascript: 0
+    }
 
 =back
 
 =head2 Strings
 
-First, a note about multiword strings in the fields. Anywhere where it says
-that you may use a multiword string, this means that you can do one of two
-things. For strings that consist solely of alphanumeric characters (i.e.
-C<\w+>) and spaces, the string will be recognized as is:
+Anywhere that it says that you may use a multiword string, this means you can
+do one of two things. For strings that consist solely of alphanumeric characters 
+(i.e. C<\w+>) and spaces, the string will be recognized as is:
 
     field_1|A longer label
 
@@ -1256,23 +1308,25 @@ You can define groups of fields using the C<!group> directive:
         year[4]//INT
     }
 
-You can then include instances of this group using the C<!field> directive:
+You can also use groups in normal field lines:
 
-    !field %DATE birthday
+    birthday|Your birthday:DATE
 
-This will create a line in the form labeled ``Birthday'' which contains
+This will create a line in the form labeled ``Your birthday'' which contains
 a month dropdown, and day and year text entry fields. The actual input field
 names are formed by concatenating the C<!field> name (e.g. C<birthday>) with
 the name of the subfield defined in the group (e.g. C<month>, C<day>, C<year>).
 Thus in this example, you would end up with the form fields C<birthday_month>,
 C<birthday_day>, and C<birthday_year>.
 
-You can also use groups in normal field lines:
-
-    birthday|Your birthday:DATE
-
 The only (currently) supported pieces of a fieldspec that may be used with a
 group in this notation are name, label, and hint.
+
+The old method of using field groups was with the C<!field> directive:
+
+    !field %DATE birthday
+
+This format is now B<deprecated>, and the parser will warn you if you use it.
 
 =head2 Comments
 
@@ -1295,12 +1349,6 @@ Better tests!
 =head2 Language/Parser
 
 Make sure that multiple runs of the parser don't share data.
-
-Warn/suggest using the C<!submit> directive if some uses C<foo:submit>?
-
-Set FB constructor options directly in the formspec (via a C<!fb> or similar
-directive). The major issue here would be what format to use to allow for
-array/hash refs.
 
 Pieces that wouldn't make sense in a group field: size, row/col, options,
 validate. These should cause C<build> to emit a warning before ignoring them.
@@ -1325,6 +1373,11 @@ Maybe use HTML::Template instead of Text::Template for the built in template
 Creating two $parsers in the same script causes the second one to get the data
 from the first one.
 
+Placing C<fields> in a C<!fb> directive does not behave as expected (i.e. they
+don't show up). This is not a big issue, since you should be defining your fields
+in the body of the formspec file, but for completeness' sake I would like to get
+this figured out.
+
 I'm sure there are more in there, I just haven't tripped over any new ones lately. :-)
 
 Suggestions on how to improve the (currently tiny) test suite would be appreciated.
@@ -1341,7 +1394,7 @@ Thanks to eszpee for pointing out some bugs in the default value parsing,
 as well as some suggestions for i18n/l10n and splitting up long forms into
 sections.
 
-And of course, to Nathan Wiger, for giving use CGI::FormBuilder in the
+And of course, to Nathan Wiger, for giving us CGI::FormBuilder in the
 first place. Thanks Nate!
 
 =head1 AUTHOR
