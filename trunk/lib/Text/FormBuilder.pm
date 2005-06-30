@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter Class::ParseText::Base);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.12_01';
+$VERSION = '0.12';
 @EXPORT = qw(create_form);
 
 use Carp;
@@ -1327,7 +1327,8 @@ The old method of using field groups was with the C<!field> directive:
 
     !field %DATE birthday
 
-This format is now B<deprecated>, and the parser will warn you if you use it.
+This format is now B<deprecated>, and although it still works, the parser will
+warn you if you use it.
 
 =head2 Comments
 
@@ -1353,6 +1354,8 @@ Pieces that wouldn't make sense in a group field: size, row/col, options,
 validate. These should cause C<build> to emit a warning before ignoring them.
 
 C<!include> directive to include external formspec files
+
+Better recovery from parse errors
 
 =head2 Code generation/Templates
 
