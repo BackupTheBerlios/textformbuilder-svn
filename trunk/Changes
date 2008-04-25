@@ -1,6 +1,11 @@
 Release history for Text::FormBuilder.
 
-0.12
+0.13 - 24 Apr 2008
+    * documentation patch from Ron Pero
+    * added shebang line to the fb.pl script
+    * added documentation about field hints
+
+0.12 - 30 Jun 2005
     * BUGFIX: stopped crosstalk of data from one object to another
     * added !fb directive to set FB constructor parameters directly;
       uses YAML to hold strucutred data

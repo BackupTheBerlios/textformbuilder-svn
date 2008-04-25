@@ -6,7 +6,7 @@ use warnings;
 use base qw(Exporter Class::ParseText::Base);
 use vars qw($VERSION @EXPORT);
 
-$VERSION = '0.12';
+$VERSION = '0.13';
 @EXPORT = qw(create_form);
 
 use Carp;
@@ -709,13 +709,13 @@ A simple formspec looks like this:
 
     name//VALUE
     email//EMAIL
-    langauge:select{English,Spanish,French,German}
+    language:select{English,Spanish,French,German}
     moreinfo|Send me more information:checkbox
     interests:checkbox{Perl,karate,bass guitar}
 
-This will produce a required C<name> test field, a required C<email> text
+This will produce a required C<name> text field, a required C<email> text
 field that must look like an email address, an optional select dropdown
-field C<langauge> with the choices English, Spanish, French, and German,
+field C<language> with the choices English, Spanish, French, and German,
 an optional C<moreinfo> checkbox labeled ``Send me more information'', and
 finally a set of checkboxes named C<interests> with the choices Perl,
 karate, and bass guitar.
@@ -731,7 +731,7 @@ karate, and bass guitar.
     # parse a file (regular scalar)
     $parser->parse($filename);
     
-    # or pass a scalar ref for parse a literal string
+    # or pass a scalar ref to parse a literal string
     $parser->parse(\$string);
     
     # or an array ref to parse lines
@@ -790,7 +790,7 @@ to set the C<css> parameter to import your file:
 =item C<external_css>
 
 If you want to use multiple external stylesheets, or an external stylesheet
-in conojunction with the default styles, use the C<external_css> option:
+in conjunction with the default styles, use the C<external_css> option:
 
     # single external sheet
     external_css => 'my_styles.css'
@@ -1069,7 +1069,7 @@ groups.
 
 =item C<!title>
 
-Line directive contianing the title of the form.
+Line directive containing the title of the form.
 
 =item C<!author>
 
@@ -1077,14 +1077,14 @@ Line directive naming the author of the form.
 
 =item C<!description>
 
-A block directive containing a brief description of the form. Suitable for 
+A block directive containing a brief description of the form. Appears at the top of the form. Suitable for 
 special instructions on how to fill out the form. All of the text within the
-block is folded into a single paragraph.
+block is folded into a single paragraph. If you add a second !description, it will override the first.
 
-=item C<!section>
+=item C<!section id Your section text goes here>
 
 A line directive that starts a new section. Each section has its own heading
-and id, which by default are rendered into spearate tables.
+and id, which by default are rendered into separate tables.
 
 =item C<!head>
 
@@ -1170,6 +1170,15 @@ The descriptive label can be a multiword string, as described above. So if you
 want punctuation in the label, you should single quote it:
 
     color|'Fav. color'
+
+To add a descriptive hint that should appear to the right of the form field,
+put the hint in square brackets after the label, but before the field type:
+
+    # hint for a field without a label
+    color[select from a list]
+
+    # hint together with a label
+    color|Favorite color[select from this list]
 
 To use a different input type:
 
@@ -1392,6 +1401,9 @@ L<CGI::FormBuilder>, L<http://formbuilder.org>
 Thanks to eszpee for pointing out some bugs in the default value parsing,
 as well as some suggestions for i18n/l10n and splitting up long forms into
 sections.
+
+To Ron Pero for a documentation patch, and for letting me know that software
+I wrote several years ago is still of use to people.
 
 And of course, to Nathan Wiger, for giving us CGI::FormBuilder in the
 first place. Thanks Nate!
